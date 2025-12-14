@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Modal, Text } from 'react-native';
+import { View, StyleSheet, Modal, Text, Alert } from 'react-native';
 import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import StepIndicator from '../../components/StepIndicator';
@@ -12,12 +12,19 @@ import FormPicker from '../../components/FormPicker';
 import DateField from '../../components/DateField';
 import LampiranField from '../../components/LampiranField';
 import Icon from 'react-native-vector-icons/Feather';
+import { createAsset, getSubkategoriList } from '../../api/siprima';
+import dayjs from 'dayjs';
 
 const AssetWizardScreen = ({ navigation, route }) => {
   const steps = wizardSteps.asset;
   const [currentStep, setCurrentStep] = React.useState(0);
   const [showSuccess, setShowSuccess] = React.useState(false);
   const [isReview, setIsReview] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  // master options
+  const [kategoriOptions, setKategoriOptions] = React.useState([]);
+  const [subkategoriOptions, setSubkategoriOptions] = React.useState([]);
 
   // data awal jika datang dari NotificationRejected
   const initialData = route?.params?.initialData || {};
@@ -27,7 +34,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
     subKategori: initialData.subKategori || '',
     nama: initialData.nama || '',
     deskripsi: initialData.deskripsi || '',
-    tanggalPerolehan: initialData.tanggalPerolehan || '',
+    tanggalPerolehan: initialData.tanggalPerolehan || null, // penting: null/Date
     nilaiPerolehan: initialData.nilaiPerolehan || '',
     kondisi: initialData.kondisi || '',
     lampiran: initialData.lampiran || null,
@@ -35,6 +42,57 @@ const AssetWizardScreen = ({ navigation, route }) => {
     lokasi: initialData.lokasi || '',
     status: initialData.status || '',
   });
+
+  // ========== AMBIL MASTER KATEGORI DARI /sub-kategoris ==========
+  React.useEffect(() => {
+    const fetchAllSub = async () => {
+      try {
+        const res = await getSubkategoriList();
+        const subs = res?.data?.data || [];
+
+        const kategoriMap = {};
+        subs.forEach(s => {
+          const kat = s.kategori;
+          if (kat && !kategoriMap[kat.id]) {
+            kategoriMap[kat.id] = {
+              label: kat.nama,
+              value: kat.id,
+            };
+          }
+        });
+
+        setKategoriOptions(Object.values(kategoriMap));
+      } catch (e) {
+        console.log('MASTER SUB-KAT ERROR:', e?.response?.data || e.message);
+      }
+    };
+
+    fetchAllSub();
+  }, []);
+
+  // ========== AMBIL SUB-KATEGORI BERDASARKAN KATEGORI ==========
+  React.useEffect(() => {
+    const fetchSubByKategori = async () => {
+      if (!form.kategori) {
+        setSubkategoriOptions([]);
+        return;
+      }
+      try {
+        const res = await getSubkategoriList(form.kategori);
+        const subs = res?.data?.data || [];
+        setSubkategoriOptions(
+          subs.map(s => ({
+            label: s.nama,
+            value: s.id,
+          })),
+        );
+      } catch (e) {
+        console.log('SUB BY KAT ERROR:', e?.response?.data || e.message);
+      }
+    };
+
+    fetchSubByKategori();
+  }, [form.kategori]);
 
   const goNext = () => {
     if (currentStep < steps.length - 1) {
@@ -49,6 +107,39 @@ const AssetWizardScreen = ({ navigation, route }) => {
   };
 
   const isLastStep = currentStep === steps.length - 1;
+
+  const handleConfirmSubmit = async () => {
+    try {
+      setSubmitting(true);
+
+      const payload = {
+        kategori_id: form.kategori,
+        subkategori_id: form.subKategori,
+        lokasi_id: form.lokasi,
+        penanggungjawab_id: form.penanggungJawab,
+        nama: form.nama,
+        deskripsi: form.deskripsi,
+        tgl_perolehan: form.tanggalPerolehan
+          ? dayjs(form.tanggalPerolehan).toISOString()
+          : null,
+        nilai_perolehan: Number(
+          String(form.nilaiPerolehan || '0').replace(/[^0-9]/g, ''),
+        ),
+        kondisi: form.kondisi,
+        lampiran_bukti: form.lampiran,
+        is_usage: form.status?.toLowerCase() === 'active' ? 'active' : 'inactive',
+        status: 'pending',
+      };
+
+      await createAsset(payload);
+      setShowSuccess(true);
+    } catch (err) {
+      console.log('CREATE ASSET ERROR:', err?.response?.data || err.message);
+      Alert.alert('Error', 'Gagal mengirim data asset');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // ================== HALAMAN REVIEW ==================
   if (isReview) {
@@ -94,7 +185,11 @@ const AssetWizardScreen = ({ navigation, route }) => {
               <View style={styles.reviewItem}>
                 <FormField
                   label="Tanggal Perolehan Asset"
-                  value={form.tanggalPerolehan}
+                  value={
+                    form.tanggalPerolehan
+                      ? dayjs(form.tanggalPerolehan).format('DD/MM/YYYY')
+                      : ''
+                  }
                   editable={false}
                 />
               </View>
@@ -149,8 +244,9 @@ const AssetWizardScreen = ({ navigation, route }) => {
               onPress={() => setIsReview(false)}
             />
             <ActionButton
-              label="Konfirmasi"
-              onPress={() => setShowSuccess(true)}
+              label={submitting ? 'Mengirim...' : 'Konfirmasi'}
+              onPress={handleConfirmSubmit}
+              disabled={submitting}
             />
           </View>
         </SectionCard>
@@ -176,7 +272,6 @@ const AssetWizardScreen = ({ navigation, route }) => {
                   variant="outline"
                   onPress={() => {
                     setShowSuccess(false);
-                    // ke tab Dashboard -> screen DinasMain
                     navigation.navigate('Dashboard', {
                       screen: 'DinasMain',
                     });
@@ -210,15 +305,15 @@ const AssetWizardScreen = ({ navigation, route }) => {
                 <FormPicker
                   label="Kategori Asset"
                   selectedValue={form.kategori}
-                  options={['Aset TI', 'Aset Fisik']}
+                  options={kategoriOptions}
                   onValueChange={val =>
-                    setForm(f => ({ ...f, kategori: val }))
+                    setForm(f => ({ ...f, kategori: val, subKategori: '' }))
                   }
                 />
                 <FormPicker
                   label="Sub Kategori"
                   selectedValue={form.subKategori}
-                  options={['Laptop', 'Server', 'Router']}
+                  options={subkategoriOptions}
                   onValueChange={val =>
                     setForm(f => ({ ...f, subKategori: val }))
                   }
@@ -262,7 +357,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
                 <FormPicker
                   label="Kondisi Asset"
                   selectedValue={form.kondisi}
-                  options={['Baik', 'Rusak Ringan', 'Rusak Berat']}
+                  options={['baik', 'rusak ringan', 'rusak berat']}
                   onValueChange={val =>
                     setForm(f => ({ ...f, kondisi: val }))
                   }
@@ -282,7 +377,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
                 <FormPicker
                   label="Penanggung Jawab"
                   selectedValue={form.penanggungJawab}
-                  options={['Davin', 'Riani', 'Sakti']}
+                  options={['1', '2', '3']} // TODO: ganti ke master API
                   onValueChange={val =>
                     setForm(f => ({ ...f, penanggungJawab: val }))
                   }
@@ -290,7 +385,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
                 <FormPicker
                   label="Lokasi"
                   selectedValue={form.lokasi}
-                  options={['DC Utama', 'Lab 1', 'Gedung A']}
+                  options={['1', '2', '3']} // TODO: ganti ke master API
                   onValueChange={val =>
                     setForm(f => ({ ...f, lokasi: val }))
                   }
@@ -344,7 +439,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.md,
   },
-
   reviewGrid: {
     gap: spacing.sm,
     marginTop: spacing.md,
@@ -361,7 +455,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: spacing.lg,
   },
-
   modalOverlay: {
     position: 'absolute',
     top: 0,

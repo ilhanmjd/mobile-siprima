@@ -14,11 +14,6 @@ const actions = [
     buttons: ['Input'],
     route: 'RiskWizard',
   },
-  {
-    label: 'STATUS',
-    buttons: ['Check'],
-    route: 'StatusOverview',
-  },
 ];
 
 const filterChips = ['Laporan', 'Request'];

@@ -1,1 +1,1 @@
-export const BASE_URL = "http://192.168.0.91:8000/api";
+export const BASE_URL = "https://api.siprima.digitaltech.my.id";

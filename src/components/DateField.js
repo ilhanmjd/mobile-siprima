@@ -1,45 +1,44 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import colors from '../theme/colors';
-import spacing from '../theme/spacing';
+import React, { useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import dayjs from 'dayjs';
 
 const DateField = ({ label, value, onChange }) => {
-  const handlePress = () => {
-    onChange('10/10/2025'); // dummy
+  const [show, setShow] = useState(false);
+
+  const handleChange = (_, selectedDate) => {
+    setShow(false);
+    if (selectedDate) {
+      onChange(selectedDate); // kirim Date ke parent (AssetWizardScreen)
+    }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      <TouchableOpacity style={styles.input} onPress={handlePress}>
-        <Text style={value ? styles.valueText : styles.placeholderText}>
-          {value || 'Pilih tanggal'}
+      <Pressable onPress={() => setShow(true)} style={styles.input}>
+        <Text>
+          {value ? dayjs(value).format('DD/MM/YYYY') : 'Pilih tanggal'}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
+      {show && (
+        <DateTimePicker
+          mode="date"
+          value={value || new Date()}
+          onChange={handleChange}
+        />
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { marginBottom: spacing.sm },
-  label: {
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
+  container: { gap: 4 },
+  label: { fontSize: 12 },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: colors.surface,
-  },
-  placeholderText: {
-    color: colors.textMuted,
-  },
-  valueText: {
-    color: colors.text,
+    padding: 10,
   },
 });
 

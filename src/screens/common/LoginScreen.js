@@ -5,68 +5,87 @@ import SectionCard from '../../components/SectionCard';
 import FormField from '../../components/FormField';
 import ActionButton from '../../components/ActionButton';
 import { colors } from '../../theme';
-// import api from '../../utils/axios'; // removed karena pakai dummy
+import api from '../../utils/axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { BASE_URL } from '../../config/api';
 
-// Komponen layar login
 const LoginScreen = () => {
-  const navigation = useNavigation(); // akses navigator untuk redirect setelah login
-  const [email, setEmail] = useState(''); // simpan nilai email input
-  const [password, setPassword] = useState(''); // simpan nilai password input
-  const [passwordVisible, setPasswordVisible] = useState(false); // toggle visibilitas password
+  const navigation = useNavigation();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Fungsi dipanggil saat tombol Login ditekan
+  // mapping role backend -> navigator app
+  const mapBackendRoleToAppRoute = (backendRole) => {
+    switch (backendRole) {
+      case 'staff':
+        return 'DinasTabs';
+      case 'kepala_seksi':
+        return 'VerifierTabs';
+      case 'admin_kota':
+        return 'DiskominfoTabs';
+      case 'auditor_kota':
+        return 'AuditorTabs';
+      default:
+        return null;
+    }
+  };
+
   const handleLogin = async () => {
-    // TANPA VALIDASI: langsung pakai dummy response untuk preview UI
+    if (!email || !password) {
+      Alert.alert('Validasi', 'Email dan password wajib diisi');
+      return;
+    }
+
     try {
-      // Dummy response: ubah role/name/token jika perlu untuk cek routing/tampilan berbeda
-      const res = {
-        data: {
-          token: 'dummy-token-123456',
-          user: {
-            name: 'Demo User',
-            role: 'auditor', // coba ganti ke 'verifikator_dinas' | 'diskominfo' | 'auditor'
-          },
-        },
-      };
+      setLoading(true);
+      console.log('LOGIN REQ:', BASE_URL);
 
-      // Simulasi delay singkat (opsional, untuk lihat loading jika Anda tambahkan)
-      await new Promise((r) => setTimeout(r, 300));
+      const res = await api.post('/api/login', {
+        email,
+        password,
+      });
 
-      // Simpan token & role di AsyncStorage seperti perilaku nyata
-      await AsyncStorage.setItem('token', res.data.token);
-      await AsyncStorage.setItem('role', res.data.user.role);
+      const success = res?.data?.success;
+      const data = res?.data?.data;
+      const token = data?.access_token;
+      const user = data?.user;
 
-      // Notifikasi sukses
-      Alert.alert('Sukses', `Selamat datang, ${res.data.user?.name}`);
+      console.log('user RES:', data);
 
-      // Redirect berdasarkan role (sama seperti implementasi nyata)
-      switch (res.data.user.role) {
-        case 'user_dinas':
-          navigation.replace('DinasTabs');
-          break;
-        case 'verifikator_dinas':
-          navigation.replace('VerifierTabs');
-          break;
-        case 'diskominfo':
-          navigation.replace('DiskominfoTabs');
-          break;
-        case 'auditor':
-          navigation.replace('AuditorTabs');
-          break;
-        default:
-          Alert.alert('Error', 'Role tidak dikenali');
+      if (!success || !token || !user) {
+        throw new Error('Respon login tidak lengkap');
       }
-    } catch (error) {
-      console.log('DUMMY LOGIN ERROR:', error);
-      Alert.alert('Login gagal', 'Terjadi kesalahan saat proses login dummy');
+
+      // simpan token & user
+      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('role', user?.role?.name || '');
+
+      const targetRoute = mapBackendRoleToAppRoute(user?.role?.name);
+
+      if (!targetRoute) {
+        Alert.alert('Error', `Role tidak dikenali: ${user?.role?.name}`);
+        return;
+      }
+
+      Alert.alert('Sukses', `Selamat datang, ${user.name}`);
+
+      navigation.replace(targetRoute);
+    } catch (err) {
+      console.log('LOGIN ERROR:', err?.response?.data || err.message);
+      const msg =
+        err?.response?.data?.message ||
+        'Email / password salah atau server bermasalah';
+      Alert.alert('Login gagal', msg);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <Screen>
-      {/* Header dengan background image */}
       <ImageBackground
         source={require('../../../assets/login-bg.png')}
         style={styles.header}
@@ -77,7 +96,6 @@ const LoginScreen = () => {
       </ImageBackground>
 
       <SectionCard title="Login">
-        {/* Field email */}
         <FormField
           label="E-mail Address"
           placeholder="test@123.com"
@@ -85,7 +103,6 @@ const LoginScreen = () => {
           onChangeText={setEmail}
         />
 
-        {/* Field password */}
         <FormField
           label="Password"
           placeholder="******"
@@ -94,8 +111,11 @@ const LoginScreen = () => {
           inputProps={{ secureTextEntry: true }}
         />
 
-        {/* Tombol login -> memicu handleLogin (tanpa validasi, pakai dummy) */}
-        <ActionButton label="Login" onPress={handleLogin} />
+        <ActionButton
+          label={loading ? 'Loading...' : 'Login'}
+          onPress={handleLogin}
+          disabled={loading}
+        />
       </SectionCard>
     </Screen>
   );
