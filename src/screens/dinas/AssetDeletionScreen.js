@@ -1,42 +1,52 @@
 import React from 'react';
-import { View, StyleSheet, Text, Modal, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Text,
+  Modal,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import FormField from '../../components/FormField';
 import FormPicker from '../../components/FormPicker';
 import LampiranField from '../../components/LampiranField';
 import ActionButton from '../../components/ActionButton';
+import StepIndicator from '../../components/StepIndicator';
 import spacing from '../../theme/spacing';
 import colors from '../../theme/colors';
 import Icon from 'react-native-vector-icons/Feather';
+import { getDinasAssets, createAssetDeletion } from '../../api/siprima';
+
+const steps = ['Penghapusan Aset', 'Konfirmasi'];
 
 const AssetDeletionScreen = ({ navigation }) => {
   const [assets, setAssets] = React.useState([]);
   const [loadingAssets, setLoadingAssets] = React.useState(true);
-
-  const [form, setForm] = React.useState({
-    idAset: '',
-    namaAset: '',
-    alasan: '',
-    lampiran: null,
-  });
+  const [submitting, setSubmitting] = React.useState(false);
+  const [currentStep, setCurrentStep] = React.useState(0);
   const [showSuccess, setShowSuccess] = React.useState(false);
 
-  // simulasi fetch master data aset dari backend
+  const [form, setForm] = React.useState({
+    assetId: '',
+    reason: '',
+    attachment: null,
+  });
+
   React.useEffect(() => {
     const loadAssets = async () => {
       try {
-        // TODO: ganti ke fetch API beneran
-        // const res = await fetch('https://api…/assets');
-        // const data = await res.json();
-        const data = [
-          { id: 'r14a', nama: 'Laptop ASUS Vivobook' },
-          { id: 'd45k', nama: 'Printer Canon' },
-          { id: 'c12d', nama: 'Server Utama' },
-        ];
+        setLoadingAssets(true);
+        const res = await getDinasAssets();
+        const data = res?.data?.data || [];
         setAssets(data);
-      } catch (e) {
-        console.log('Error load assets', e);
+      } catch (err) {
+        console.log(
+          'LOAD ASSET DELETION OPTIONS ERROR:',
+          err?.response?.data || err.message,
+        );
+        Alert.alert('Error', 'Gagal memuat daftar aset');
       } finally {
         setLoadingAssets(false);
       }
@@ -45,92 +55,186 @@ const AssetDeletionScreen = ({ navigation }) => {
     loadAssets();
   }, []);
 
-  const handleSelectId = (id) => {
-    const found = assets.find(a => a.id === id);
-    setForm(f => ({
-      ...f,
-      idAset: id,
-      namaAset: found ? found.nama : '',
-    }));
+  const selectedAsset =
+    assets.find(asset => String(asset.id) === String(form.assetId)) || null;
+
+  const assetOptions = assets.map(asset => ({
+    label: `${asset.id} - ${asset.nama || 'Asset'}`,
+    value: asset.id,
+  }));
+
+  const resetForm = () => {
+    setForm({
+      assetId: '',
+      reason: '',
+      attachment: null,
+    });
+    setCurrentStep(0);
   };
 
-  const handleReset = () => {
-    setForm({
-      idAset: '',
-      namaAset: '',
-      alasan: '',
-      lampiran: null,
-    });
+  const validateFirstStep = () => {
+    if (!form.assetId) {
+      Alert.alert('Validasi', 'Silakan pilih ID aset yang akan dihapus');
+      return false;
+    }
+    if (!form.reason.trim()) {
+      Alert.alert('Validasi', 'Alasan penghapusan wajib diisi');
+      return false;
+    }
+    return true;
+  };
+
+  const handleNext = () => {
+    if (validateFirstStep()) {
+      setCurrentStep(1);
+    }
+  };
+
+  const buildPayload = () => {
+    const fd = new FormData();
+    fd.append('asset_id', Number(form.assetId));
+    fd.append('alasan_penghapusan', form.reason);
+    if (form.attachment) {
+      fd.append('lampiran', {
+        uri: form.attachment.uri,
+        name: form.attachment.name || 'lampiran.jpg',
+        type: form.attachment.mimeType || 'application/octet-stream',
+      });
+    }
+    return fd;
   };
 
   const handleSubmit = async () => {
-    // TODO: kirim ke API backend
-    // await fetch('POST /asset-deletion', { body: JSON.stringify(form) })
-    console.log('Submit deletion:', form);
-    setShowSuccess(true);
+    try {
+      setSubmitting(true);
+      const payload = buildPayload();
+      await createAssetDeletion(payload);
+      setShowSuccess(true);
+      resetForm();
+    } catch (err) {
+      console.log(
+        'CREATE ASSET DELETION ERROR:',
+        err?.response?.data || err.message,
+      );
+      const message =
+        err?.response?.data?.message ||
+        (err?.response?.data?.errors
+          ? JSON.stringify(err.response.data.errors)
+          : 'Gagal mengajukan penghapusan aset');
+      Alert.alert('Error', message);
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const renderStepOne = () => (
+    <>
+      {loadingAssets ? (
+        <View style={styles.loaderRow}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loaderText}>Memuat daftar aset...</Text>
+        </View>
+      ) : (
+        <FormPicker
+          label="ID Aset"
+          selectedValue={form.assetId}
+          options={assetOptions}
+          onValueChange={value =>
+            setForm(prev => ({ ...prev, assetId: value }))
+          }
+        />
+      )}
+      {selectedAsset ? (
+        <Text style={styles.assetHint}>
+          {selectedAsset.nama || 'Aset'} •{' '}
+          {selectedAsset.kode_bmd || selectedAsset.kode || 'Tanpa kode'}
+        </Text>
+      ) : null}
+
+      <FormField
+        label="Alasan Penghapusan"
+        placeholder="Tuliskan alasan penghapusan aset"
+        value={form.reason}
+        multiline
+        onChangeText={text => setForm(prev => ({ ...prev, reason: text }))}
+      />
+
+      <LampiranField
+        label="Lampiran"
+        value={form.attachment}
+        onChange={file => setForm(prev => ({ ...prev, attachment: file }))}
+      />
+    </>
+  );
+
+  const renderConfirmation = () => (
+    <>
+      <FormField
+        label="ID Aset"
+        value={
+          selectedAsset
+            ? `${
+                selectedAsset.kode_bmd ? `${selectedAsset.kode_bmd} • ` : ''
+              }${selectedAsset.nama || selectedAsset.id}`
+            : form.assetId
+        }
+        editable={false}
+      />
+      <FormField
+        label="Alasan Penghapusan"
+        value={form.reason}
+        multiline
+        editable={false}
+      />
+      <FormField
+        label="Lampiran"
+        value={form.attachment ? form.attachment.name : '-'}
+        editable={false}
+      />
+    </>
+  );
 
   return (
     <Screen>
-      <SectionCard title="Asset Deletion Input">
+      <SectionCard title="Penghapusan Aset">
+        <StepIndicator steps={steps} activeIndex={currentStep} />
         <View style={styles.form}>
-          {loadingAssets ? (
-            <View style={styles.loaderRow}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.loaderText}>Memuat daftar aset…</Text>
-            </View>
-          ) : (
-            <FormPicker
-              label="ID aset"
-              selectedValue={form.idAset}
-              options={assets.map(a => a.id)}
-              onValueChange={handleSelectId}
-            />
-          )}
-
-          <FormField
-            label="Nama aset"
-            value={form.namaAset}
-            editable={false}
-            placeholder="Nama aset akan terisi otomatis"
-          />
-
-          <FormField
-            label="Alasan penghapusan aset"
-            placeholder="Tuliskan alasan penghapusan aset"
-            value={form.alasan}
-            multiline
-            numberOfLines={4}
-            onChangeText={val =>
-              setForm(f => ({ ...f, alasan: val }))
-            }
-          />
-
-          <LampiranField
-            label="Lampiran"
-            value={form.lampiran}
-            onChange={file =>
-              setForm(f => ({ ...f, lampiran: file }))
-            }
-          />
+          {currentStep === 0 ? renderStepOne() : renderConfirmation()}
         </View>
-
         <View style={styles.footer}>
-          <ActionButton
-            label="Reset"
-            variant="outline"
-            onPress={handleReset}
-            style={styles.resetButton}
-          />
-          <ActionButton
-            label="Submit"
-            onPress={handleSubmit}
-            style={styles.submitButton}
-          />
+          {currentStep === 0 ? (
+            <>
+              <ActionButton
+                label="Batal"
+                variant="outline"
+                onPress={() => navigation.goBack()}
+                style={styles.resetButton}
+              />
+              <ActionButton
+                label="Lanjut"
+                onPress={handleNext}
+                style={styles.submitButton}
+              />
+            </>
+          ) : (
+            <>
+              <ActionButton
+                label="Kembali"
+                variant="outline"
+                onPress={() => setCurrentStep(0)}
+                style={styles.resetButton}
+              />
+              <ActionButton
+                label={submitting ? 'Mengirim...' : 'Submit'}
+                onPress={handleSubmit}
+                disabled={submitting}
+                style={styles.submitButton}
+              />
+            </>
+          )}
         </View>
       </SectionCard>
 
-      {/* Modal sukses */}
       <Modal
         visible={showSuccess}
         transparent
@@ -140,9 +244,8 @@ const AssetDeletionScreen = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Icon name="check-circle" size={96} color={colors.primary} />
-            <Text style={styles.modalTitle}>Your request has</Text>
-            <Text style={styles.modalTitle}>been sent</Text>
-            <Text style={styles.modalTitle}>successfully.</Text>
+            <Text style={styles.modalTitle}>Pengajuan penghapusan</Text>
+            <Text style={styles.modalTitle}>berhasil dikirim.</Text>
 
             <View style={styles.modalButtons}>
               <ActionButton
@@ -152,7 +255,7 @@ const AssetDeletionScreen = ({ navigation }) => {
                 style={styles.modalBack}
               />
               <ActionButton
-                label="Next"
+                label="Lihat Notif"
                 onPress={() => {
                   setShowSuccess(false);
                   navigation.navigate('Notifications');
@@ -170,7 +273,7 @@ const AssetDeletionScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   form: {
     gap: spacing.md,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   loaderRow: {
     flexDirection: 'row',
@@ -179,11 +282,17 @@ const styles = StyleSheet.create({
   },
   loaderText: {
     fontSize: 12,
+    color: colors.textMuted,
+  },
+  assetHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: -spacing.sm,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
   },
   resetButton: {
     flex: 1,
@@ -197,7 +306,10 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     position: 'absolute',
-    top: 0, bottom: 0, left: 0, right: 0,
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: 'rgba(0,0,0,0.25)',
     justifyContent: 'center',
     alignItems: 'center',

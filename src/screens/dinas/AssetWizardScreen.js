@@ -14,6 +14,23 @@ import LampiranField from '../../components/LampiranField';
 import Icon from 'react-native-vector-icons/Feather';
 import { createAsset, getSubkategoriList } from '../../api/siprima';
 import dayjs from 'dayjs';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const PENANGGUNG_JAWAB_OPTIONS = [
+  { label: 'Budi Santoso', value: 1 },
+  { label: 'Siti Nurhaliza', value: 2 },
+  { label: 'Ahmad Dahlan', value: 3 },
+  { label: 'Rina Wijaya', value: 4 },
+  { label: 'Dedi Mulyadi', value: 5 },
+];
+
+const LOKASI_OPTIONS = [
+  { label: 'Kantor Pusat', value: 1 },
+  { label: 'Gedung A Lantai 1', value: 2 },
+  { label: 'Gedung B Lantai 2', value: 3 },
+  { label: 'Gudang Utama', value: 4 },
+  { label: 'Kantor Cabang Bandung', value: 5 },
+];
 
 const AssetWizardScreen = ({ navigation, route }) => {
   const steps = wizardSteps.asset;
@@ -21,6 +38,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
   const [showSuccess, setShowSuccess] = React.useState(false);
   const [isReview, setIsReview] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
+  const [user, setUser] = React.useState(null);
 
   // master options
   const [kategoriOptions, setKategoriOptions] = React.useState([]);
@@ -42,6 +60,21 @@ const AssetWizardScreen = ({ navigation, route }) => {
     lokasi: initialData.lokasi || '',
     status: initialData.status || '',
   });
+
+  React.useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('user');
+        if (raw) {
+          setUser(JSON.parse(raw));
+        }
+      } catch (err) {
+        console.log('LOAD USER FAILED:', err?.message);
+      }
+    };
+
+    loadUser();
+  }, []);
 
   // ========== AMBIL MASTER KATEGORI DARI /sub-kategoris ==========
   React.useEffect(() => {
@@ -94,6 +127,41 @@ const AssetWizardScreen = ({ navigation, route }) => {
     fetchSubByKategori();
   }, [form.kategori]);
 
+  const getOptionLabel = React.useCallback((options, value) => {
+    if (!value) {
+      return '';
+    }
+    const found = options.find(opt => opt.value === value);
+    if (found?.label) {
+      return found.label;
+    }
+    return typeof value === 'string' ? value : String(value);
+  }, []);
+
+  const toNumberOrNull = value => {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const serializeLampiran = lampiran => {
+    if (!lampiran) {
+      return null;
+    }
+    if (typeof lampiran === 'string') {
+      return lampiran;
+    }
+    if (lampiran.uri) {
+      return lampiran.uri;
+    }
+    if (lampiran.name) {
+      return lampiran.name;
+    }
+    return String(lampiran);
+  };
+
   const goNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(prev => prev + 1);
@@ -113,20 +181,23 @@ const AssetWizardScreen = ({ navigation, route }) => {
       setSubmitting(true);
 
       const payload = {
-        kategori_id: form.kategori,
-        subkategori_id: form.subKategori,
-        lokasi_id: form.lokasi,
-        penanggungjawab_id: form.penanggungJawab,
+        dinas_id: toNumberOrNull(
+          user?.dinas_id || user?.dinasId || user?.dinas?.id,
+        ),
+        kategori_id: toNumberOrNull(form.kategori),
+        subkategori_id: toNumberOrNull(form.subKategori),
+        lokasi_id: toNumberOrNull(form.lokasi),
+        penanggungjawab_id: toNumberOrNull(form.penanggungJawab),
         nama: form.nama,
         deskripsi: form.deskripsi,
         tgl_perolehan: form.tanggalPerolehan
-          ? dayjs(form.tanggalPerolehan).toISOString()
+          ? dayjs(form.tanggalPerolehan).format('YYYY-MM-DD HH:mm:ss')
           : null,
         nilai_perolehan: Number(
           String(form.nilaiPerolehan || '0').replace(/[^0-9]/g, ''),
         ),
         kondisi: form.kondisi,
-        lampiran_bukti: form.lampiran,
+        lampiran_bukti: serializeLampiran(form.lampiran),
         is_usage: form.status?.toLowerCase() === 'active' ? 'active' : 'inactive',
         status: 'pending',
       };
@@ -151,7 +222,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
               <View style={styles.reviewItem}>
                 <FormField
                   label="Kategori Asset"
-                  value={form.kategori}
+                  value={getOptionLabel(kategoriOptions, form.kategori)}
                   editable={false}
                 />
               </View>
@@ -168,7 +239,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
               <View style={styles.reviewItem}>
                 <FormField
                   label="Sub Kategori"
-                  value={form.subKategori}
+                  value={getOptionLabel(subkategoriOptions, form.subKategori)}
                   editable={false}
                 />
               </View>
@@ -196,7 +267,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
               <View style={styles.reviewItem}>
                 <FormField
                   label="Lokasi"
-                  value={form.lokasi}
+                  value={getOptionLabel(LOKASI_OPTIONS, form.lokasi)}
                   editable={false}
                 />
               </View>
@@ -233,7 +304,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
           />
           <FormField
             label="Penanggung Jawab"
-            value={form.penanggungJawab}
+            value={getOptionLabel(PENANGGUNG_JAWAB_OPTIONS, form.penanggungJawab)}
             editable={false}
           />
 
@@ -377,7 +448,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
                 <FormPicker
                   label="Penanggung Jawab"
                   selectedValue={form.penanggungJawab}
-                  options={['1', '2', '3']} // TODO: ganti ke master API
+                  options={PENANGGUNG_JAWAB_OPTIONS}
                   onValueChange={val =>
                     setForm(f => ({ ...f, penanggungJawab: val }))
                   }
@@ -385,7 +456,7 @@ const AssetWizardScreen = ({ navigation, route }) => {
                 <FormPicker
                   label="Lokasi"
                   selectedValue={form.lokasi}
-                  options={['1', '2', '3']} // TODO: ganti ke master API
+                  options={LOKASI_OPTIONS}
                   onValueChange={val =>
                     setForm(f => ({ ...f, lokasi: val }))
                   }

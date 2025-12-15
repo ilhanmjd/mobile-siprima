@@ -10,7 +10,8 @@ const FormField = ({
   inputProps = {},
   rightContent,
   multiline = false,
-  style
+  style,
+  editable = true,
 }) => (
   <View style={[styles.wrapper, style]}>
     {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -21,8 +22,13 @@ const FormField = ({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.textLight}
-        style={[styles.input, multiline && styles.multiline]}
+        style={[
+          styles.input,
+          multiline && styles.multiline,
+          !editable && styles.readonly,
+        ]}
         multiline={multiline}
+        editable={editable}
         {...inputProps}
       />
       {rightContent ? <View style={styles.right}>{rightContent}</View> : null}
@@ -62,6 +68,10 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: 'center',
+  },
+  readonly: {
+    backgroundColor: '#F6F7FB',
+    color: colors.textMuted,
   },
 });
 

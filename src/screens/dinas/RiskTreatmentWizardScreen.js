@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Modal, Text } from 'react-native';
+import { View, StyleSheet, Modal, Text, Alert } from 'react-native';
 import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import StepIndicator from '../../components/StepIndicator';
@@ -11,17 +11,29 @@ import ActionButton from '../../components/ActionButton';
 import spacing from '../../theme/spacing';
 import Icon from 'react-native-vector-icons/Feather';
 import { wizardSteps } from '../../data/mockData';
+import { createRiskTreatment } from '../../api/siprima';
+import dayjs from 'dayjs';
 
 const RiskTreatmentWizardScreen = ({ navigation, route }) => {
   const steps = wizardSteps.riskTreatment || ['Rencana', 'Residual']; // kalau belum ada di mockData
   const [currentStep, setCurrentStep] = React.useState(0);
   const [isReview, setIsReview] = React.useState(false);
   const [showSuccess, setShowSuccess] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
 
   const initialData = route?.params?.initialData || {};
+  const riskIdFromRoute = route?.params?.riskId;
+
+  const PIC_OPTIONS = [
+    { label: 'Davin', value: 1 },
+    { label: 'Riani', value: 2 },
+    { label: 'Sakti', value: 3 },
+  ];
 
   const [form, setForm] = React.useState({
-    idRisiko: initialData.idRisiko || '',
+    idRisiko:
+      initialData.idRisiko ||
+      (riskIdFromRoute ? String(riskIdFromRoute) : ''),
     strategi: initialData.strategi || '',
     pengendalian: initialData.pengendalian || '',
     penanggungJawab: initialData.penanggungJawab || '',
@@ -32,6 +44,17 @@ const RiskTreatmentWizardScreen = ({ navigation, route }) => {
     levelResidual: initialData.levelResidual || '',
     lampiran: initialData.lampiran || null,
   });
+
+  React.useEffect(() => {
+    if (riskIdFromRoute) {
+      setForm(f => {
+        if (f.idRisiko) {
+          return f;
+        }
+        return { ...f, idRisiko: String(riskIdFromRoute) };
+      });
+    }
+  }, [riskIdFromRoute]);
 
   const hitungLevelResidual = (probStr, impactStr) => {
     const prob = Number(probStr) || 0;
@@ -66,6 +89,49 @@ const RiskTreatmentWizardScreen = ({ navigation, route }) => {
 
   const isLastStep = currentStep === steps.length - 1;
 
+  const toNumberOrNull = value => {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const parseCurrency = val =>
+    Number(String(val || '0').replace(/[^0-9]/g, '')) || 0;
+
+  const handleConfirmSubmit = async () => {
+    try {
+      setSubmitting(true);
+      const payload = {
+        risiko_id: toNumberOrNull(form.idRisiko),
+        strategi: form.strategi,
+        pengendalian: form.pengendalian,
+        penanggung_jawab_id: toNumberOrNull(form.penanggungJawab),
+        target_tanggal: form.targetTanggal
+          ? dayjs(form.targetTanggal).format('YYYY-MM-DD')
+          : null,
+        biaya: parseCurrency(form.biaya),
+        probabilitas_akhir: toNumberOrNull(form.probabilitasAkhir),
+        dampak_akhir: toNumberOrNull(form.dampakAkhir),
+        level_residual: toNumberOrNull(form.levelResidual),
+      };
+
+      await createRiskTreatment(payload);
+      setShowSuccess(true);
+    } catch (err) {
+      const errResp = err?.response?.data;
+      console.log('CREATE RISK TREATMENT ERROR:', errResp || err.message);
+      const msg =
+        errResp?.message ||
+        (errResp?.errors ? JSON.stringify(errResp.errors) : null) ||
+        'Gagal mengirim risk treatment';
+      Alert.alert('Error', msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // ====== HALAMAN REVIEW ======
   if (isReview) {
     return (
@@ -96,8 +162,9 @@ const RiskTreatmentWizardScreen = ({ navigation, route }) => {
               onPress={() => setIsReview(false)}
             />
             <ActionButton
-              label="Konfirmasi"
-              onPress={() => setShowSuccess(true)}
+              label={submitting ? 'Mengirim...' : 'Konfirmasi'}
+              onPress={handleConfirmSubmit}
+              disabled={submitting}
             />
           </View>
         </SectionCard>
@@ -177,7 +244,7 @@ const RiskTreatmentWizardScreen = ({ navigation, route }) => {
                 <FormPicker
                   label="Penanggung Jawab"
                   selectedValue={form.penanggungJawab}
-                  options={['Davin', 'Riani', 'Sakti']}
+                  options={PIC_OPTIONS}
                   onValueChange={val =>
                     setForm(f => ({ ...f, penanggungJawab: val }))
                   }

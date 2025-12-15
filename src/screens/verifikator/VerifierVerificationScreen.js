@@ -1,28 +1,32 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import Screen from '../../components/Screen';
+import SectionCard from '../../components/SectionCard';
 import spacing from '../../theme/spacing';
 import colors from '../../theme/colors';
+import { useVerifierSubmissions } from '../../context/VerifierSubmissionsContext';
 
 const FILTERS = ['Asset', 'Risk', 'Risk Treatment', 'Maintenance', 'Asset Deletion'];
 
-const allItems = [
-  { id: 1, label: 'Input Aset', type: 'Asset' },
-  { id: 2, label: 'Input Risiko', type: 'Risk' },
-  { id: 3, label: 'Input Risk Treatment', type: 'Risk Treatment' },
-  { id: 4, label: 'Input Maintenance', type: 'Maintenance' },
-  { id: 5, label: 'Penghapusan Aset', type: 'Asset Deletion' },
-];
-
 const VerifierVerificationScreen = ({ navigation }) => {
   const [activeFilter, setActiveFilter] = React.useState('Asset');
+  const { submissions, loading } = useVerifierSubmissions();
 
-  const items = allItems.filter(i => i.type === activeFilter);
+  const items = submissions[activeFilter] || [];
 
-  const handleNext = (item) => {
-    // nanti disini arahkan ke detail verifikasi sesuai type & data dari backend
-    // contoh:
-    // navigation.navigate('VerifierNotifications', { type: item.type })
+  const handleReview = item => {
+    navigation.navigate('VerifierSubmissionDetail', {
+      type: activeFilter,
+      submissionId: item.id,
+      initialSubmission: item,
+    });
   };
 
   return (
@@ -30,7 +34,6 @@ const VerifierVerificationScreen = ({ navigation }) => {
       <View style={styles.container}>
         <Text style={styles.title}>Verification</Text>
 
-        {/* FILTER ROW */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -57,20 +60,54 @@ const VerifierVerificationScreen = ({ navigation }) => {
           ))}
         </ScrollView>
 
-        {/* LIST DARI FORM USER DINAS (Sementara dummy allItems) */}
+        {loading ? (
+          <View style={styles.loader}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loaderText}>Memuat pengajuan...</Text>
+          </View>
+        ) : (
         <ScrollView contentContainerStyle={styles.list}>
           {items.map(item => (
-            <View key={item.id} style={styles.row}>
-              <Text style={styles.rowLabel}>{item.label}</Text>
-              <TouchableOpacity
-                style={styles.nextButton}
-                onPress={() => handleNext(item)}
-              >
-                <Text style={styles.nextText}>NEXT</Text>
-              </TouchableOpacity>
-            </View>
+            <SectionCard key={item.id} style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View>
+                  <Text style={styles.cardTitle}>{item.id}</Text>
+                  <Text style={styles.cardMeta}>
+                    {item.pemohon} · {item.waktu}
+                  </Text>
+                </View>
+                <View style={styles.statusPill}>
+                  <Text style={styles.statusText}>Menunggu</Text>
+                </View>
+              </View>
+
+              <View style={styles.fieldList}>
+                {(item.previewFields || []).map(field => (
+                  <View key={field.label} style={styles.fieldRow}>
+                    <Text style={styles.fieldLabel}>{field.label}</Text>
+                    <Text style={styles.fieldValue}>{field.value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={styles.approveButton}
+                  onPress={() => handleReview(item)}
+                >
+                  <Text style={styles.approveText}>Lihat Form</Text>
+                </TouchableOpacity>
+              </View>
+            </SectionCard>
           ))}
+
+          {!items.length && (
+            <Text style={styles.emptyText}>
+              Belum ada pengajuan untuk kategori ini.
+            </Text>
+          )}
         </ScrollView>
+        )}
       </View>
     </Screen>
   );
@@ -112,32 +149,83 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   list: {
-    gap: spacing.sm,
+    gap: spacing.md,
+    paddingBottom: spacing.xl,
   },
-  row: {
+  card: {
+    backgroundColor: '#F7FBFF',
+  },
+  cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E7F0FF',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.md,
+    justifyContent: 'space-between',
     marginBottom: spacing.sm,
   },
-  rowLabel: {
-    flex: 1,
+  cardTitle: {
+    fontWeight: '700',
     fontSize: 14,
-    fontWeight: '500',
   },
-  nextButton: {
-    backgroundColor: '#0052CC',
+  cardMeta: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  statusPill: {
+    backgroundColor: '#E0E8FF',
     borderRadius: 999,
-    paddingHorizontal: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  statusText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  fieldList: {
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  fieldLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  fieldValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: spacing.sm,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  approveButton: {
+    backgroundColor: '#0062FF',
+    borderRadius: 999,
+    paddingHorizontal: 20,
     paddingVertical: 6,
   },
-  nextText: {
+  approveText: {
     color: '#FFF',
     fontSize: 12,
     fontWeight: '700',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: colors.textMuted,
+  },
+  loader: {
+    marginTop: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  loaderText: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
 });
 

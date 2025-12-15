@@ -1,41 +1,258 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import colors from '../../theme/colors';
 import spacing from '../../theme/spacing';
 import { useNavigation } from '@react-navigation/native';
+import {
+  getDinasAssets,
+  getDinasRisks,
+  getRiskTreatments,
+  getMaintenances,
+  getAssetDeletions,
+} from '../../api/siprima';
 
 const NotificationsScreen = () => {
   const navigation = useNavigation();
   const [filter, setFilter] = React.useState('Asset');
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
+  const [assetItems, setAssetItems] = React.useState([]);
+  const [riskItems, setRiskItems] = React.useState([]);
+  const [riskTreatmentItems, setRiskTreatmentItems] = React.useState([]);
+  const [loadingAssets, setLoadingAssets] = React.useState(false);
+  const [loadingRisks, setLoadingRisks] = React.useState(false);
+  const [loadingRiskTreatments, setLoadingRiskTreatments] = React.useState(false);
+  const [maintenanceItems, setMaintenanceItems] = React.useState([]);
+  const [loadingMaintenances, setLoadingMaintenances] = React.useState(false);
+  const [assetDeletionItems, setAssetDeletionItems] = React.useState([]);
+  const [loadingAssetDeletions, setLoadingAssetDeletions] = React.useState(false);
 
   const filterOptions = ['Asset', 'Risk', 'Risk Treatment', 'Maintenance', 'Asset Delete'];
 
-  const allItems = [
+  const STATUS_META = {
+    pending: { label: 'Under Review', color: '#8E8E93' },
+    'under review': { label: 'Under Review', color: '#8E8E93' },
+    under_review: { label: 'Under Review', color: '#8E8E93' },
+    menunggu: { label: 'Under Review', color: '#8E8E93' },
+    review: { label: 'Under Review', color: '#8E8E93' },
+
+    approved: { label: 'Accepted', color: colors.primary },
+    accepted: { label: 'Accepted', color: colors.primary },
+    diterima: { label: 'Accepted', color: colors.primary },
+    disetujui: { label: 'Accepted', color: colors.primary },
+
+    rejected: { label: 'Rejected', color: '#FF3B30' },
+    declined: { label: 'Rejected', color: '#FF3B30' },
+    ditolak: { label: 'Rejected', color: '#FF3B30' },
+
+    default: { label: 'Under Review', color: '#8E8E93' },
+  };
+
+  const FALLBACK_ASSET_ITEMS = [
     { name: 'ASUS Vivobook', status: 'Under Review', type: 'Asset', color: '#8E8E93' },
     { name: 'Komputer', status: 'Accepted', type: 'Asset', color: colors.primary },
     { name: 'Cloud Storage', status: 'Rejected', type: 'Asset', color: '#FF3B30' },
+  ];
 
+  const FALLBACK_RISK_ITEMS = [
     { name: 'Aset Hilang', status: 'Under Review', type: 'Risk', color: '#8E8E93' },
     { name: 'Virus', status: 'Accepted', type: 'Risk', color: colors.primary },
     { name: 'Pencurian Data', status: 'Rejected', type: 'Risk', color: '#FF3B30' },
+  ];
 
+  const FALLBACK_RISK_TREATMENTS = [
     { name: 'Pemasangan Firewall', status: 'Under Review', type: 'Risk Treatment', color: '#8E8E93' },
     { name: 'Pengadaan Lemari Keamanan', status: 'Accepted', type: 'Risk Treatment', color: colors.primary },
     { name: 'Rekrut Saptam', status: 'Rejected', type: 'Risk Treatment', color: '#FF3B30' },
-
-    { name: 'ASUS RoG', status: 'Under Review', type: 'Maintenance', color: '#8E8E93' },
-    { name: 'Honda Beat', status: 'Accepted', type: 'Maintenance', color: colors.primary },
-    { name: 'Printer', status: 'Rejected', type: 'Maintenance', color: '#FF3B30' },
-
+  ];
+  const FALLBACK_MAINTENANCE_ITEMS = [
+    { name: 'Maintenance Printer Canon iR 2006N', status: 'Under Review', type: 'Maintenance', color: '#8E8E93' },
+    { name: 'Maintenance Laptop Dell Latitude 5420', status: 'Under Review', type: 'Maintenance', color: '#8E8E93' },
+  ];
+  const FALLBACK_ASSET_DELETION_ITEMS = [
     { name: 'Lenovo Legion', status: 'Under Review', type: 'Asset Delete', color: '#8E8E93' },
     { name: 'SSD Acer', status: 'Accepted', type: 'Asset Delete', color: colors.primary },
     { name: 'Website Kominfo', status: 'Rejected', type: 'Asset Delete', color: '#FF3B30' },
   ];
 
-  const items = allItems.filter(item => item.type === filter);
+  const staticItems = [
+    // Risk Treatment fallback inserted separately
+    { name: 'ASUS RoG', status: 'Under Review', type: 'Maintenance', color: '#8E8E93' },
+    { name: 'Honda Beat', status: 'Accepted', type: 'Maintenance', color: colors.primary },
+    { name: 'Printer', status: 'Rejected', type: 'Maintenance', color: '#FF3B30' },
+  ];
+
+  React.useEffect(() => {
+    const fetchAssets = async () => {
+      try {
+        setLoadingAssets(true);
+        const res = await getDinasAssets();
+        const data = res?.data?.data || [];
+        const mapped = data.map(asset => {
+          const statusKey = String(asset.status || '').trim().toLowerCase();
+          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+          return {
+            id: asset.id,
+            name: asset.nama || 'Asset',
+            status: statusMeta.label,
+            type: 'Asset',
+            color: statusMeta.color,
+            originalStatus: asset.status,
+            assetData: asset,
+          };
+        });
+        setAssetItems(mapped);
+      } catch (err) {
+        console.log('LOAD ASSET NOTIFS ERROR:', err?.response?.data || err.message);
+      } finally {
+        setLoadingAssets(false);
+      }
+    };
+
+    const fetchRisks = async () => {
+      try {
+        setLoadingRisks(true);
+        const res = await getDinasRisks();
+        const data = res?.data?.data || [];
+        const mapped = data.map(risk => {
+          const statusKey = String(risk.status || '').trim().toLowerCase();
+          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+          return {
+            id: risk.id,
+            name: risk.judul || risk.asset?.nama || 'Risiko',
+            status: statusMeta.label,
+            type: 'Risk',
+            color: statusMeta.color,
+            originalStatus: risk.status,
+            riskData: risk,
+          };
+        });
+        setRiskItems(mapped);
+      } catch (err) {
+        console.log('LOAD RISKS ERROR:', err?.response?.data || err.message);
+      } finally {
+        setLoadingRisks(false);
+      }
+    };
+
+    const fetchRiskTreatments = async () => {
+      try {
+        setLoadingRiskTreatments(true);
+        const res = await getRiskTreatments();
+        const data = res?.data?.data || [];
+        const mapped = data.map(rt => {
+          const statusKey = String(rt.status || '').trim().toLowerCase();
+          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+          return {
+            id: rt.id,
+            name: rt.strategi || `Risk Treatment ${rt.id}`,
+            status: statusMeta.label,
+            type: 'Risk Treatment',
+            color: statusMeta.color,
+            originalStatus: rt.status,
+            riskTreatmentData: rt,
+          };
+        });
+        setRiskTreatmentItems(mapped);
+      } catch (err) {
+        console.log('LOAD RISK TREATS ERROR:', err?.response?.data || err.message);
+      } finally {
+        setLoadingRiskTreatments(false);
+      }
+    };
+
+    const fetchMaintenances = async () => {
+      try {
+        setLoadingMaintenances(true);
+        const res = await getMaintenances();
+        const data = res?.data?.data || [];
+        const mapped = data.map(mt => {
+          const statusKey = String(mt.status || '').trim().toLowerCase();
+          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+          return {
+            id: mt.id,
+            name: mt.alasan_pemeliharaan || mt.asset?.nama || `Maintenance ${mt.id}`,
+            status: statusMeta.label,
+            type: 'Maintenance',
+            color: statusMeta.color,
+            originalStatus: mt.status,
+            maintenanceData: mt,
+          };
+        });
+        setMaintenanceItems(mapped);
+      } catch (err) {
+        console.log('LOAD MAINTENANCE ERROR:', err?.response?.data || err.message);
+      } finally {
+        setLoadingMaintenances(false);
+      }
+    };
+
+    const fetchAssetDeletions = async () => {
+      try {
+        setLoadingAssetDeletions(true);
+        const res = await getAssetDeletions();
+        const data = res?.data?.data || [];
+        const mapped = data.map(item => {
+          const statusKey = String(item.status || '').trim().toLowerCase();
+          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+          return {
+            id: item.id,
+            name: item.asset?.nama || `Penghapusan Aset ${item.id}`,
+            status: statusMeta.label,
+            type: 'Asset Delete',
+            color: statusMeta.color,
+            originalStatus: item.status,
+            assetDeletionData: item,
+          };
+        });
+        setAssetDeletionItems(mapped);
+      } catch (err) {
+        console.log('LOAD ASSET DELETION ERROR:', err?.response?.data || err.message);
+      } finally {
+        setLoadingAssetDeletions(false);
+      }
+    };
+
+    fetchAssets();
+    fetchRisks();
+    fetchRiskTreatments();
+    fetchMaintenances();
+    fetchAssetDeletions();
+  }, []);
+
+  const getItemsForFilter = () => {
+    if (filter === 'Asset') {
+      return assetItems.length ? assetItems : FALLBACK_ASSET_ITEMS;
+    }
+    if (filter === 'Risk') {
+      return riskItems.length ? riskItems : FALLBACK_RISK_ITEMS;
+    }
+    if (filter === 'Risk Treatment') {
+      return riskTreatmentItems.length
+        ? riskTreatmentItems
+        : FALLBACK_RISK_TREATMENTS;
+    }
+    if (filter === 'Maintenance') {
+      if (maintenanceItems.length) {
+        return maintenanceItems.map(item => ({
+          ...item,
+          name: item.maintenanceData?.asset?.nama
+            ? `Maintenance ${item.maintenanceData.asset.nama}`
+            : item.name,
+        }));
+      }
+      return FALLBACK_MAINTENANCE_ITEMS;
+    }
+    if (filter === 'Asset Delete') {
+      return assetDeletionItems.length
+        ? assetDeletionItems
+        : FALLBACK_ASSET_DELETION_ITEMS;
+    }
+    return staticItems.filter(item => item.type === filter);
+  };
+
+  const items = getItemsForFilter();
 
   const handleStatusPress = (item) => {
     // khusus FILTER = Risk
@@ -44,6 +261,8 @@ const NotificationsScreen = () => {
         navigation.navigate('NotificationDetail', {
           asset: item.name,
           mode: 'RISK_TREATMENT',   // biar footer-nya: Risk Treatment
+          riskId: item.id,
+          riskData: item.riskData,
         });
         return;
       }
@@ -51,17 +270,70 @@ const NotificationsScreen = () => {
         navigation.navigate('NotificationRejected', {
           asset: item.name,
           mode: 'RISK',     // biar footer-nya: Input Risiko
+          riskId: item.id,
+          riskData: item.riskData,
         });
         return;
       }
       return; // Under Review: nggak kemana-mana
     }
 
+    if (filter === 'Risk Treatment') {
+      if (item.status === 'Accepted') {
+        navigation.navigate('NotificationDetail', {
+          asset: item.name,
+          mode: 'RISK_TREATMENT',
+          riskId: item.riskTreatmentData?.risiko_id,
+          riskTreatmentData: item.riskTreatmentData,
+          riskData: item.riskTreatmentData?.risk,
+        });
+        return;
+      }
+      if (item.status === 'Rejected') {
+        navigation.navigate('NotificationRejected', {
+          asset: item.name,
+          mode: 'RISK_TREATMENT',
+          riskId: item.riskTreatmentData?.risiko_id,
+          riskTreatmentData: item.riskTreatmentData,
+          riskData: item.riskTreatmentData?.risk,
+        });
+        return;
+      }
+      return;
+    }
+
+    if (filter === 'Maintenance') {
+      if (item.status === 'Accepted') {
+        navigation.navigate('NotificationDetail', {
+          asset: item.name,
+          mode: 'MAINTENANCE',
+          maintenanceData: item.maintenanceData,
+        });
+        return;
+      }
+      if (item.status === 'Rejected') {
+        navigation.navigate('NotificationRejected', {
+          asset: item.name,
+          mode: 'MAINTENANCE',
+          maintenanceData: item.maintenanceData,
+        });
+        return;
+      }
+      return;
+    }
+
     // behaviour lama utk filter lain
     if (item.status === 'Accepted') {
-      navigation.navigate('NotificationDetail', { asset: item.name });
+      navigation.navigate('NotificationDetail', {
+        asset: item.name,
+        assetId: item.id,
+        assetData: item.assetData,
+      });
     } else if (item.status === 'Rejected') {
-      navigation.navigate('NotificationRejected', { asset: item.name });
+      navigation.navigate('NotificationRejected', {
+        asset: item.name,
+        assetData: item.assetData,
+      });
     }
   };
 
@@ -84,28 +356,55 @@ const NotificationsScreen = () => {
         </View>
 
         {/* List notifikasi */}
-        <ScrollView contentContainerStyle={styles.list}>
-          {items.map((item, index) => (
-            <View key={`${item.type}-${index}`} style={styles.row}>
-              <View style={styles.assetPill}>
-                <Text style={styles.assetText}>{item.name}</Text>
-              </View>
-
-              {item.status === 'Under Review' ? (
-                <View style={[styles.statusPill, { backgroundColor: item.color }]}>
-                  <Text style={styles.statusText}>{item.status}</Text>
+        {filter === 'Asset' && loadingAssets ? (
+          <View style={styles.loaderWrapper}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>Memuat notifikasi asset...</Text>
+          </View>
+        ) : filter === 'Risk' && loadingRisks ? (
+          <View style={styles.loaderWrapper}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>Memuat notifikasi risiko...</Text>
+          </View>
+        ) : filter === 'Risk Treatment' && loadingRiskTreatments ? (
+          <View style={styles.loaderWrapper}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>Memuat risk treatment...</Text>
+          </View>
+        ) : filter === 'Maintenance' && loadingMaintenances ? (
+          <View style={styles.loaderWrapper}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>Memuat maintenance...</Text>
+          </View>
+        ) : filter === 'Asset Delete' && loadingAssetDeletions ? (
+          <View style={styles.loaderWrapper}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>Memuat penghapusan aset...</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.list}>
+            {items.map((item, index) => (
+              <View key={`${item.type}-${item.id || index}`} style={styles.row}>
+                <View style={styles.assetPill}>
+                  <Text style={styles.assetText}>{item.name}</Text>
                 </View>
-              ) : (
-                <Pressable
-                  style={[styles.statusPill, { backgroundColor: item.color }]}
-                  onPress={() => handleStatusPress(item)}
-                >
-                  <Text style={styles.statusText}>{item.status}</Text>
-                </Pressable>
-              )}
-            </View>
-          ))}
-        </ScrollView>
+
+                {item.status === 'Under Review' ? (
+                  <View style={[styles.statusPill, { backgroundColor: item.color }]}>
+                    <Text style={styles.statusText}>{item.status}</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={[styles.statusPill, { backgroundColor: item.color }]}
+                    onPress={() => handleStatusPress(item)}
+                  >
+                    <Text style={styles.statusText}>{item.status}</Text>
+                  </Pressable>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Popup filter */}
         {isFilterOpen && (
@@ -172,6 +471,15 @@ const styles = StyleSheet.create({
   list: {
     gap: spacing.md,
     zIndex: 1,
+  },
+  loaderWrapper: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.lg,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
   row: {
     flexDirection: 'row',

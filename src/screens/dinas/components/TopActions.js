@@ -28,6 +28,10 @@ const TopActions = ({ navigation }) => {
       });
       return;
     }
+    if (item.label === 'ASET' && btn === 'Hapus') {
+      navigation.navigate('AssetDeletion');
+      return;
+    }
     if (item.label === 'RISIKO' && btn === 'Input') {
       navigation.navigate('Asset', {
         screen: 'RiskWizard',

@@ -6,6 +6,7 @@ import colors from '../../theme/colors';
 import spacing from '../../theme/spacing';
 import ActionButton from '../../components/ActionButton';
 import { useNavigation } from '@react-navigation/native';
+import dayjs from 'dayjs';
 
 const NotificationDetailScreen = ({ route }) => {
   const navigation = useNavigation();
@@ -20,20 +21,77 @@ const NotificationDetailScreen = ({ route }) => {
     dateTime = '10/10/2025 - 17:03:34 PM',
     mode = 'DEFAULT',      // 'RISK_TREATMENT' | 'REINPUT_RISK' | 'DEFAULT'
     riskId = null,         // kalau nanti mau kirim id risk
+    assetId = null,
+    assetData = null,
+    riskData = null,
+    riskTreatmentData = null,
   } = route?.params || {};
+
+  const assetSource =
+    assetData ||
+    riskTreatmentData?.risiko?.asset ||
+    riskTreatmentData?.risk?.asset ||
+    riskData?.asset ||
+    null;
+  const isRiskTreatmentAccepted =
+    mode === 'RISK_TREATMENT' &&
+    (riskTreatmentData?.status || '').toLowerCase() === 'accepted';
+  const headerTitle = assetSource?.nama || asset;
+  const displayCategory = assetSource?.kategori?.nama || category;
+  const displayCode =
+    assetSource?.kode || assetSource?.asset_code || code;
+  const displayPIC =
+    assetSource?.penanggungjawab?.nama ||
+    assetSource?.penanggungjawab?.name ||
+    pic;
+  const displayCondition = assetSource?.kondisi || condition;
+  const displayDescription = assetSource?.deskripsi || description;
+  const displayAssetId = assetSource?.id || assetId;
+  const displayDate = (() => {
+    const rawDate =
+      assetSource?.updated_at ||
+      assetSource?.created_at ||
+      assetSource?.tgl_perolehan ||
+      assetSource?.tanggal_perolehan ||
+      dateTime;
+    if (!rawDate) {
+      return dateTime;
+    }
+    try {
+      return dayjs(rawDate).format('DD/MM/YYYY - HH:mm:ss');
+    } catch {
+      return rawDate;
+    }
+  })();
 
   // Tentukan judul footer & label tombol berdasarkan mode
   let buttonLabel = 'Buka Form';
   let onPressPrimary = () => {};
 
   if (mode === 'RISK_TREATMENT') {
-    buttonLabel = 'Risk Treatment';
-    onPressPrimary = () => {
-      navigation.navigate('Asset', {
-        screen: 'RiskTreatmentWizard',
-        params: { riskId },
-      });
-    };
+    if (isRiskTreatmentAccepted) {
+      buttonLabel = 'Input Maintenance';
+      onPressPrimary = () => {
+        navigation.navigate('Asset', {
+          screen: 'MaintenanceInput',
+          params: {
+            initialData: {
+              idAset: displayAssetId ? String(displayAssetId) : '',
+              alasan: `Maintenance untuk ${headerTitle}`,
+            },
+            riskTreatmentData,
+          },
+        });
+      };
+    } else {
+      buttonLabel = 'Risk Treatment';
+      onPressPrimary = () => {
+        navigation.navigate('Asset', {
+          screen: 'RiskTreatmentWizard',
+          params: { riskId },
+        });
+      };
+    }
   } else if (mode === 'REINPUT_RISK') {
     buttonLabel = 'Input Risiko';
     onPressPrimary = () => {
@@ -41,6 +99,7 @@ const NotificationDetailScreen = ({ route }) => {
         screen: 'RiskWizard',
         params: {
           initialData: {
+            idAset: assetId ? String(assetId) : '',
             judulRisiko: asset,
             deskripsi: description,
             // tambahkan field lain kalau perlu prefill
@@ -54,6 +113,13 @@ const NotificationDetailScreen = ({ route }) => {
     onPressPrimary = () => {
       navigation.navigate('Asset', {
         screen: 'RiskWizard',
+        params: {
+          initialData: {
+            idAset: assetId ? String(assetId) : assetData?.asset_id ? String(assetData.asset_id) : '',
+            judulRisiko: asset,
+            deskripsi: description,
+          },
+        },
       });
     };
   }
@@ -64,19 +130,56 @@ const NotificationDetailScreen = ({ route }) => {
         <ScrollView contentContainerStyle={styles.container}>
           {/* HEADER */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{asset}</Text>
-            <Text style={styles.headerSubtitle}>{dateTime}</Text>
+            <Text style={styles.headerTitle}>{headerTitle}</Text>
+            <Text style={styles.headerSubtitle}>{displayDate}</Text>
           </View>
 
           {/* BODY */}
           <View style={styles.body}>
-            <Text style={styles.row}>Kategori         : {category}</Text>
-            <Text style={styles.row}>Nama Asset       : {asset}</Text>
-            <Text style={styles.row}>Kode Asset       : {code}</Text>
-            <Text style={styles.row}>Person in Charge : {pic}</Text>
-            <Text style={[styles.row, styles.rowRed]}>ID asset r14a</Text>
-            <Text style={styles.row}>Kondisi Asset    : {condition}</Text>
-            <Text style={styles.row}>Deskripsi Asset  : {description}</Text>
+            <Text style={styles.row}>Kategori         : {displayCategory}</Text>
+            <Text style={styles.row}>Nama Asset       : {headerTitle}</Text>
+            <Text style={styles.row}>Kode Asset       : {displayCode}</Text>
+            <Text style={styles.row}>Person in Charge : {displayPIC}</Text>
+            {displayAssetId ? (
+              <Text style={[styles.row, styles.rowRed]}>
+                ID Asset : {displayAssetId}
+              </Text>
+            ) : null}
+            <Text style={styles.row}>Kondisi Asset    : {displayCondition}</Text>
+            <Text style={styles.row}>Deskripsi Asset  : {displayDescription}</Text>
+
+            {mode === 'RISK_TREATMENT' && riskData ? (
+              <>
+                <Text style={styles.sectionLabel}>Detail Risiko</Text>
+                <Text style={styles.row}>Judul Risiko     : {riskData.judul || headerTitle}</Text>
+                <Text style={styles.row}>Penyebab         : {riskData.penyebab || '-'}</Text>
+                <Text style={styles.row}>Dampak           : {riskData.dampak || '-'}</Text>
+                <Text style={styles.row}>Probabilitas     : {riskData.probabilitas ?? '-'}</Text>
+                <Text style={styles.row}>Nilai Dampak     : {riskData.nilai_dampak ?? '-'}</Text>
+                <Text style={styles.row}>Level Risiko     : {riskData.level_risiko ?? '-'}</Text>
+                <Text style={styles.row}>Status           : {riskData.status || '-'}</Text>
+              </>
+            ) : null}
+
+            {riskTreatmentData ? (
+              <>
+                <Text style={styles.sectionLabel}>Detail Risk Treatment</Text>
+                <Text style={styles.row}>Strategi          : {riskTreatmentData.strategi || '-'}</Text>
+                <Text style={styles.row}>Pengendalian      : {riskTreatmentData.pengendalian || '-'}</Text>
+                <Text style={styles.row}>Penanggung Jawab  : {riskTreatmentData.penanggung_jawab?.nama || riskTreatmentData.penanggung_jawab_id || '-'}</Text>
+                <Text style={styles.row}>
+                  Target Tanggal  :{' '}
+                  {riskTreatmentData.target_tanggal
+                    ? dayjs(riskTreatmentData.target_tanggal).format('DD/MM/YYYY')
+                    : '-'}
+                </Text>
+                <Text style={styles.row}>Biaya             : {riskTreatmentData.biaya ?? 0}</Text>
+                <Text style={styles.row}>Probabilitas Akhir: {riskTreatmentData.probabilitas_akhir ?? '-'}</Text>
+                <Text style={styles.row}>Dampak Akhir      : {riskTreatmentData.dampak_akhir ?? '-'}</Text>
+                <Text style={styles.row}>Level Residual    : {riskTreatmentData.level_residual ?? '-'}</Text>
+                <Text style={styles.row}>Status            : {riskTreatmentData.status || '-'}</Text>
+              </>
+            ) : null}
           </View>
 
           {/* FOOTER BUTTON */}
@@ -119,6 +222,11 @@ const styles = StyleSheet.create({
   row: {
     fontSize: 14,
     marginBottom: 4,
+  },
+  sectionLabel: {
+    marginTop: spacing.lg,
+    fontSize: 14,
+    fontWeight: '700',
   },
   rowRed: {
     color: 'red',

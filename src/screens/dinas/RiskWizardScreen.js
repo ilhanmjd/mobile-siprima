@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Modal, Text } from 'react-native';
+import { View, StyleSheet, Modal, Text, Alert } from 'react-native';
 import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import StepIndicator from '../../components/StepIndicator';
@@ -11,12 +11,16 @@ import LampiranField from '../../components/LampiranField';
 import spacing from '../../theme/spacing';
 import { wizardSteps } from '../../data/mockData';
 import Icon from 'react-native-vector-icons/Feather';
+import { createRisk } from '../../api/siprima';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const RiskWizardScreen = ({ navigation, route }) => {
   const steps = wizardSteps.risk; // pastikan ada di mockData
   const [currentStep, setCurrentStep] = React.useState(0);
   const [isReview, setIsReview] = React.useState(false);
   const [showSuccess, setShowSuccess] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [user, setUser] = React.useState(null);
 
   const initialData = route?.params?.initialData || {};
 
@@ -34,6 +38,21 @@ const RiskWizardScreen = ({ navigation, route }) => {
     status: 'Baru',
     lampiran: initialData.lampiran || null,
   });
+
+  React.useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('user');
+        if (raw) {
+          setUser(JSON.parse(raw));
+        }
+      } catch (err) {
+        console.log('LOAD USER FAILED:', err?.message);
+      }
+    };
+
+    loadUser();
+  }, []);
 
   const goNext = () => {
     if (currentStep < steps.length - 1) {
@@ -67,7 +86,7 @@ const RiskWizardScreen = ({ navigation, route }) => {
 };
 
 // saat user ubah dampak
-const handleImpactChange = val => {
+  const handleImpactChange = val => {
   setForm(f => {
     const { levelRisiko, kriteria } = hitungLevelDanKriteria(f.probabilitas, val);
     return { ...f, nilaiDampak: val, levelRisiko, kriteria };
@@ -75,6 +94,50 @@ const handleImpactChange = val => {
 };
 
   const isLastStep = currentStep === steps.length - 1;
+
+  const toNumberOrNull = value => {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const handleConfirmSubmit = async () => {
+    try {
+      setSubmitting(true);
+      const payload = {
+        dinas_id:
+          user?.dinas_id ||
+          user?.dinasId ||
+          user?.dinas?.id ||
+          null,
+        asset_id: toNumberOrNull(form.idAset),
+        judul: form.judulRisiko,
+        deskripsi: form.deskripsi,
+        penyebab: form.penyebab,
+        dampak: form.dampak,
+        probabilitas: toNumberOrNull(form.probabilitas),
+        nilai_dampak: toNumberOrNull(form.nilaiDampak),
+        level_risiko: toNumberOrNull(form.levelRisiko),
+        kriteria: form.kriteria,
+        prioritas: form.prioritas,
+      };
+
+      await createRisk(payload);
+      setShowSuccess(true);
+    } catch (err) {
+      const errResp = err?.response?.data;
+      console.log('CREATE RISK ERROR:', errResp || err.message);
+      const message =
+        errResp?.message ||
+        (errResp?.errors ? JSON.stringify(errResp.errors) : null) ||
+        'Gagal mengirim data risiko';
+      Alert.alert('Error', message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // ============ HALAMAN KONFIRMASI ============
   if (isReview) {
@@ -152,8 +215,9 @@ const handleImpactChange = val => {
               onPress={() => setIsReview(false)}
             />
             <ActionButton
-              label="Konfirmasi"
-              onPress={() => setShowSuccess(true)}
+              label={submitting ? 'Mengirim...' : 'Konfirmasi'}
+              onPress={handleConfirmSubmit}
+              disabled={submitting}
             />
           </View>
         </SectionCard>

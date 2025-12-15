@@ -33,6 +33,7 @@ import VerifierDashboardStack from './VerifierDashboardStack';
 import VerifierVerificationScreen from '../screens/verifikator/VerifierVerificationScreen';
 import VerifierNotificationsScreen from '../screens/verifikator/VerifierNotificationsScreen';
 import VerifierProfileScreen from '../screens/verifikator/VerifierProfileScreen';
+import VerifierSubmissionDetailScreen from '../screens/verifikator/VerifierSubmissionDetailScreen';
 // DISKOMINFO Screens
 import DiskominfoDashboardScreen from '../screens/diskominfo/DiskominfoDashboardScreen';
 import DiskominfoProfileScreen from '../screens/diskominfo/DiskominfoProfileScreen';
@@ -120,6 +121,19 @@ const DinasTabs = () => (
 );
 
 /* ========= TAB VERIFIKATOR ========= */
+const VerifierVerificationStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen
+      name="VerifierVerificationMain"
+      component={VerifierVerificationScreen}
+    />
+    <Stack.Screen
+      name="VerifierSubmissionDetail"
+      component={VerifierSubmissionDetailScreen}
+    />
+  </Stack.Navigator>
+);
+
 const VerifierTabs = () => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
@@ -144,7 +158,10 @@ const VerifierTabs = () => (
     })}
   >
     <Tab.Screen name="Beranda" component={VerifierDashboardStack} />
-    <Tab.Screen name="Verification" component={VerifierVerificationScreen} />
+    <Tab.Screen
+      name="Verification"
+      component={VerifierVerificationStack}
+    />
     <Tab.Screen name="Notifikasi" component={VerifierNotificationsScreen} />
     <Tab.Screen name="Profil" component={VerifierProfileScreen} />
   </Tab.Navigator>
