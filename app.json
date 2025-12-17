@@ -20,13 +20,17 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.rifqif93.mobilesiprima"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiBaseUrl": "http://127.0.0.1:8000"
+      "apiBaseUrl": "http://127.0.0.1:8000",
+      "eas": {
+        "projectId": "e845c4db-1419-4cad-8c98-9ed1f28b4a95"
+      }
     }
   }
 }

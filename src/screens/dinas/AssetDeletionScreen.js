@@ -258,7 +258,10 @@ const AssetDeletionScreen = ({ navigation }) => {
                 label="Lihat Notif"
                 onPress={() => {
                   setShowSuccess(false);
-                  navigation.navigate('Notifications');
+                  navigation.navigate('Notifications', {
+                    screen: 'NotificationsMain',
+                    params: { initialFilter: 'Asset Delete' },
+                  });
                 }}
                 style={styles.modalNext}
               />

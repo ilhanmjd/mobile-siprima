@@ -4,7 +4,7 @@ import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import colors from '../../theme/colors';
 import spacing from '../../theme/spacing';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   getDinasAssets,
   getDinasRisks,
@@ -13,9 +13,10 @@ import {
   getAssetDeletions,
 } from '../../api/siprima';
 
-const NotificationsScreen = () => {
-  const navigation = useNavigation();
-  const [filter, setFilter] = React.useState('Asset');
+const NotificationsScreen = ({ navigation, route }) => {
+  const [filter, setFilter] = React.useState(
+    route?.params?.initialFilter || 'Asset',
+  );
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
   const [assetItems, setAssetItems] = React.useState([]);
   const [riskItems, setRiskItems] = React.useState([]);
@@ -83,143 +84,178 @@ const NotificationsScreen = () => {
     { name: 'Printer', status: 'Rejected', type: 'Maintenance', color: '#FF3B30' },
   ];
 
-  React.useEffect(() => {
-    const fetchAssets = async () => {
-      try {
-        setLoadingAssets(true);
-        const res = await getDinasAssets();
-        const data = res?.data?.data || [];
-        const mapped = data.map(asset => {
-          const statusKey = String(asset.status || '').trim().toLowerCase();
-          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
-          return {
-            id: asset.id,
-            name: asset.nama || 'Asset',
-            status: statusMeta.label,
-            type: 'Asset',
-            color: statusMeta.color,
-            originalStatus: asset.status,
-            assetData: asset,
-          };
-        });
-        setAssetItems(mapped);
-      } catch (err) {
-        console.log('LOAD ASSET NOTIFS ERROR:', err?.response?.data || err.message);
-      } finally {
-        setLoadingAssets(false);
-      }
-    };
+  const fetchAssets = React.useCallback(async () => {
+    try {
+      setLoadingAssets(true);
+      const res = await getDinasAssets();
+      const data = res?.data?.data || [];
+      const mapped = data.map(asset => {
+        const statusKey = String(asset.status || '').trim().toLowerCase();
+        const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+        return {
+          id: asset.id,
+          name: asset.nama || 'Asset',
+          status: statusMeta.label,
+          type: 'Asset',
+          color: statusMeta.color,
+          originalStatus: asset.status,
+          assetData: asset,
+        };
+      });
+      setAssetItems(mapped);
+    } catch (err) {
+      console.log('LOAD ASSET NOTIFS ERROR:', err?.response?.data || err.message);
+    } finally {
+      setLoadingAssets(false);
+    }
+  }, []);
 
-    const fetchRisks = async () => {
-      try {
-        setLoadingRisks(true);
-        const res = await getDinasRisks();
-        const data = res?.data?.data || [];
-        const mapped = data.map(risk => {
-          const statusKey = String(risk.status || '').trim().toLowerCase();
-          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
-          return {
-            id: risk.id,
-            name: risk.judul || risk.asset?.nama || 'Risiko',
-            status: statusMeta.label,
-            type: 'Risk',
-            color: statusMeta.color,
-            originalStatus: risk.status,
-            riskData: risk,
-          };
-        });
-        setRiskItems(mapped);
-      } catch (err) {
-        console.log('LOAD RISKS ERROR:', err?.response?.data || err.message);
-      } finally {
-        setLoadingRisks(false);
-      }
-    };
+  const fetchRisks = React.useCallback(async () => {
+    try {
+      setLoadingRisks(true);
+      const res = await getDinasRisks();
+      const data = res?.data?.data || [];
+      const mapped = data.map(risk => {
+        const statusKey = String(risk.status || '').trim().toLowerCase();
+        const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+        return {
+          id: risk.id,
+          name: risk.judul || risk.asset?.nama || 'Risiko',
+          status: statusMeta.label,
+          type: 'Risk',
+          color: statusMeta.color,
+          originalStatus: risk.status,
+          riskData: risk,
+        };
+      });
+      setRiskItems(mapped);
+    } catch (err) {
+      console.log('LOAD RISKS ERROR:', err?.response?.data || err.message);
+    } finally {
+      setLoadingRisks(false);
+    }
+  }, []);
 
-    const fetchRiskTreatments = async () => {
-      try {
-        setLoadingRiskTreatments(true);
-        const res = await getRiskTreatments();
-        const data = res?.data?.data || [];
-        const mapped = data.map(rt => {
-          const statusKey = String(rt.status || '').trim().toLowerCase();
-          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
-          return {
-            id: rt.id,
-            name: rt.strategi || `Risk Treatment ${rt.id}`,
-            status: statusMeta.label,
-            type: 'Risk Treatment',
-            color: statusMeta.color,
-            originalStatus: rt.status,
-            riskTreatmentData: rt,
-          };
-        });
-        setRiskTreatmentItems(mapped);
-      } catch (err) {
-        console.log('LOAD RISK TREATS ERROR:', err?.response?.data || err.message);
-      } finally {
-        setLoadingRiskTreatments(false);
-      }
-    };
+  const fetchRiskTreatments = React.useCallback(async () => {
+    try {
+      setLoadingRiskTreatments(true);
+      const res = await getRiskTreatments();
+      const data = res?.data?.data || [];
+      const mapped = data.map(rt => {
+        const statusKey = String(rt.status || '').trim().toLowerCase();
+        const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+        const assetLabel =
+          rt.risk?.asset?.nama ||
+          rt.asset?.nama ||
+          rt.asset_name ||
+          '';
+        return {
+          id: rt.id,
+          name: assetLabel
+            ? `Risk Treatment Asset ${assetLabel}`
+            : rt.strategi || `Risk Treatment ${rt.id}`,
+          status: statusMeta.label,
+          type: 'Risk Treatment',
+          color: statusMeta.color,
+          originalStatus: rt.status,
+          riskTreatmentData: rt,
+        };
+      });
+      setRiskTreatmentItems(mapped);
+    } catch (err) {
+      console.log('LOAD RISK TREATS ERROR:', err?.response?.data || err.message);
+    } finally {
+      setLoadingRiskTreatments(false);
+    }
+  }, []);
 
-    const fetchMaintenances = async () => {
-      try {
-        setLoadingMaintenances(true);
-        const res = await getMaintenances();
-        const data = res?.data?.data || [];
-        const mapped = data.map(mt => {
-          const statusKey = String(mt.status || '').trim().toLowerCase();
-          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
-          return {
-            id: mt.id,
-            name: mt.alasan_pemeliharaan || mt.asset?.nama || `Maintenance ${mt.id}`,
-            status: statusMeta.label,
-            type: 'Maintenance',
-            color: statusMeta.color,
-            originalStatus: mt.status,
-            maintenanceData: mt,
-          };
-        });
-        setMaintenanceItems(mapped);
-      } catch (err) {
-        console.log('LOAD MAINTENANCE ERROR:', err?.response?.data || err.message);
-      } finally {
-        setLoadingMaintenances(false);
-      }
-    };
+  const fetchMaintenances = React.useCallback(async () => {
+    try {
+      setLoadingMaintenances(true);
+      const res = await getMaintenances();
+      const data = res?.data?.data || [];
+      const mapped = data.map(mt => {
+        const statusKey = String(
+          mt.status_review || mt.status || '',
+        )
+          .trim()
+          .toLowerCase();
+        const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+        return {
+          id: mt.id,
+          name: mt.alasan_pemeliharaan || mt.asset?.nama || `Maintenance ${mt.id}`,
+          status: statusMeta.label,
+          type: 'Maintenance',
+          color: statusMeta.color,
+          originalStatus: mt.status_review || mt.status,
+          maintenanceData: mt,
+        };
+      });
+      setMaintenanceItems(mapped);
+    } catch (err) {
+      console.log('LOAD MAINTENANCE ERROR:', err?.response?.data || err.message);
+    } finally {
+      setLoadingMaintenances(false);
+    }
+  }, []);
 
-    const fetchAssetDeletions = async () => {
-      try {
-        setLoadingAssetDeletions(true);
-        const res = await getAssetDeletions();
-        const data = res?.data?.data || [];
-        const mapped = data.map(item => {
-          const statusKey = String(item.status || '').trim().toLowerCase();
-          const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
-          return {
-            id: item.id,
-            name: item.asset?.nama || `Penghapusan Aset ${item.id}`,
-            status: statusMeta.label,
-            type: 'Asset Delete',
-            color: statusMeta.color,
-            originalStatus: item.status,
-            assetDeletionData: item,
-          };
-        });
-        setAssetDeletionItems(mapped);
-      } catch (err) {
-        console.log('LOAD ASSET DELETION ERROR:', err?.response?.data || err.message);
-      } finally {
-        setLoadingAssetDeletions(false);
-      }
-    };
+  const fetchAssetDeletions = React.useCallback(async () => {
+    try {
+      setLoadingAssetDeletions(true);
+      const res = await getAssetDeletions();
+      const data = res?.data?.data || [];
+      const mapped = data.map(item => {
+        const statusKey = String(item.status || '').trim().toLowerCase();
+        const statusMeta = STATUS_META[statusKey] || STATUS_META.default;
+        return {
+          id: item.id,
+          name: item.asset?.nama || `Penghapusan Aset ${item.id}`,
+          status: statusMeta.label,
+          type: 'Asset Delete',
+          color: statusMeta.color,
+          originalStatus: item.status,
+          assetDeletionData: item,
+        };
+      });
+      setAssetDeletionItems(mapped);
+    } catch (err) {
+      console.log('LOAD ASSET DELETION ERROR:', err?.response?.data || err.message);
+    } finally {
+      setLoadingAssetDeletions(false);
+    }
+  }, []);
 
+  const fetchAll = React.useCallback(() => {
     fetchAssets();
     fetchRisks();
     fetchRiskTreatments();
     fetchMaintenances();
     fetchAssetDeletions();
-  }, []);
+  }, [
+    fetchAssets,
+    fetchRisks,
+    fetchRiskTreatments,
+    fetchMaintenances,
+    fetchAssetDeletions,
+  ]);
+
+  React.useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchAll();
+    }, [fetchAll]),
+  );
+
+  React.useEffect(() => {
+    if (!route?.params?.initialFilter) {
+      return;
+    }
+    setFilter(route.params.initialFilter);
+    navigation.setParams({ initialFilter: undefined });
+  }, [route?.params?.initialFilter, navigation]);
 
   const getItemsForFilter = () => {
     if (filter === 'Asset') {
@@ -283,7 +319,10 @@ const NotificationsScreen = () => {
         navigation.navigate('NotificationDetail', {
           asset: item.name,
           mode: 'RISK_TREATMENT',
-          riskId: item.riskTreatmentData?.risiko_id,
+          riskId:
+            item.riskTreatmentData?.risiko_id ??
+            item.riskTreatmentData?.risk_id ??
+            item.riskTreatmentData?.risk?.id,
           riskTreatmentData: item.riskTreatmentData,
           riskData: item.riskTreatmentData?.risk,
         });
@@ -293,7 +332,10 @@ const NotificationsScreen = () => {
         navigation.navigate('NotificationRejected', {
           asset: item.name,
           mode: 'RISK_TREATMENT',
-          riskId: item.riskTreatmentData?.risiko_id,
+          riskId:
+            item.riskTreatmentData?.risiko_id ??
+            item.riskTreatmentData?.risk_id ??
+            item.riskTreatmentData?.risk?.id,
           riskTreatmentData: item.riskTreatmentData,
           riskData: item.riskTreatmentData?.risk,
         });
@@ -340,7 +382,12 @@ const NotificationsScreen = () => {
   return (
     <Screen>
       <SectionCard style={styles.card}>
-        <Text style={styles.title}>Notifikasi Verifikasi</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Notifikasi Verifikasi</Text>
+          <Pressable style={styles.refreshButton} onPress={fetchAll}>
+            <Text style={styles.refreshText}>Refresh</Text>
+          </Pressable>
+        </View>
 
         {/* Filter dropdown */}
         <View style={styles.filterWrapper}>
@@ -438,11 +485,27 @@ const NotificationsScreen = () => {
 
 const styles = StyleSheet.create({
   card: { position: 'relative' },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
   title: {
     fontSize: 16,
     fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: spacing.md,
+  },
+  refreshButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  refreshText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   filterWrapper: {
     alignItems: 'flex-start',

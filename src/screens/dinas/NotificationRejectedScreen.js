@@ -43,6 +43,14 @@ const NotificationRejectedScreen = ({ route }) => {
     pic;
   const displayCondition = assetSource?.kondisi || condition;
   const displayDescription = assetSource?.deskripsi || description;
+  const resolvedRiskId =
+    riskId ??
+    riskTreatmentData?.risiko_id ??
+    riskTreatmentData?.risk_id ??
+    riskTreatmentData?.risiko?.id ??
+    riskTreatmentData?.risk?.id ??
+    riskData?.id ??
+    null;
   const displayDate = (() => {
     const raw =
       assetSource?.updated_at ||
@@ -82,16 +90,21 @@ const NotificationRejectedScreen = ({ route }) => {
         },
       });
     } else if (mode === 'RISK_TREATMENT') {
+      const resolvedRiskId =
+        riskId ??
+        riskTreatmentData?.risiko_id ??
+        riskTreatmentData?.risk_id ??
+        riskTreatmentData?.risiko?.id ??
+        riskTreatmentData?.risk?.id ??
+        assetSource?.id ??
+        '';
       navigation.navigate('Asset', {
         screen: 'RiskTreatmentWizard',
         params: {
-          riskId: riskTreatmentData?.risiko_id,
+          riskId: resolvedRiskId,
           initialData: {
             idRisiko:
-              riskTreatmentData?.risiko_id ||
-              riskTreatmentData?.risiko?.id ||
-              riskTreatmentData?.risk?.id ||
-              assetSource?.id ||
+              resolvedRiskId ||
               '',
             strategi: riskTreatmentData?.strategi,
             pengendalian: riskTreatmentData?.pengendalian,
@@ -175,14 +188,20 @@ const NotificationRejectedScreen = ({ route }) => {
               </>
             ) : null}
 
-            {mode === 'RISK_TREATMENT' && riskTreatmentData ? (
-              <>
-                <Text style={[styles.row, styles.sectionLabel]}>
-                  Detail Risk Treatment
-                </Text>
-                <Text style={styles.row}>
-                  Strategi : {riskTreatmentData.strategi || '-'}
-                </Text>
+              {mode === 'RISK_TREATMENT' && riskTreatmentData ? (
+                <>
+                  <Text style={[styles.row, styles.sectionLabel]}>
+                    Detail Risk Treatment
+                  </Text>
+                  <Text style={styles.row}>
+                    ID Risiko :{' '}
+                    {resolvedRiskId
+                      ? String(resolvedRiskId)
+                      : '-'}
+                  </Text>
+                  <Text style={styles.row}>
+                    Strategi : {riskTreatmentData.strategi || '-'}
+                  </Text>
                 <Text style={styles.row}>
                   Pengendalian : {riskTreatmentData.pengendalian || '-'}
                 </Text>

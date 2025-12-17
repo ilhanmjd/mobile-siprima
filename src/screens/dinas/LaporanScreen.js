@@ -1,155 +1,290 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import spacing from '../../theme/spacing';
 import colors from '../../theme/colors';
 import Icon from 'react-native-vector-icons/Feather';
+import dayjs from 'dayjs';
+import { getMaintenances } from '../../api/siprima';
 
-const assetRows = [
-  { nama: 'Laptop Asus', dinas: 'Kesehatan', tanggal: '16/01/2020', status: 'Active' },
-  { nama: 'Mobil Pajero', dinas: 'Pendidikan', tanggal: '01/12/2021', status: 'Inactive' },
-  { nama: 'Motor Beat', dinas: 'Olahraga', tanggal: '30/03/2022', status: 'Maintenance' },
-  { nama: 'SSD Acer', dinas: 'Kominfo', tanggal: '10/03/2023', status: 'Retired' },
-  { nama: 'Website', dinas: 'Kominfo', tanggal: '29/05/2024', status: 'Active' },
-  { nama: 'Ipad', dinas: 'Perhutani', tanggal: '20/06/2025', status: 'Active' },
-];
+const formatStatusLabel = status => {
+  const key = String(status || '')
+    .trim()
+    .toLowerCase();
+  if (['accepted', 'selesai', 'finished'].includes(key)) {
+    return { label: 'Selesai', color: '#4CAF50' };
+  }
+  if (['penanganan', 'in_progress'].includes(key)) {
+    return { label: 'Penanganan', color: '#f6c343' };
+  }
+  if (['rejected', 'ditolak'].includes(key)) {
+    return { label: 'Ditolak', color: '#FF3B30' };
+  }
+  if (['pending', 'under review', 'menunggu'].includes(key)) {
+    return { label: 'Pending', color: '#8E8E93' };
+  }
+  return { label: status || '-', color: '#8E8E93' };
+};
 
-const riskRows = [
-  { nama: 'Laptop Asus', prioritas: 'Rp 9.000.000', status: 'Active', statusPerlakuan: 'Active', tanggal: '16/01/2020' },
-  { nama: 'Mobil Pajero', prioritas: 'Rp 700.000.000', status: 'Inactive', statusPerlakuan: 'Inactive', tanggal: '01/12/2021' },
-  { nama: 'Motor Beat', prioritas: 'Rp 5.000.000', status: 'Maintenance', statusPerlakuan: 'Maintenance', tanggal: '30/03/2022' },
-  { nama: 'SSD Acer', prioritas: 'Rp 400.000', status: 'Retired', statusPerlakuan: 'Retired', tanggal: '10/03/2023' },
-  { nama: 'Website', prioritas: 'Rp 10.000.000', status: 'Active', statusPerlakuan: 'Active', tanggal: '29/05/2024' },
-  { nama: 'Ipad', prioritas: 'Rp 8.000.000', status: 'Active', statusPerlakuan: 'Active', tanggal: '20/06/2025' },
-];
+const getMonthLabel = value => {
+  if (!value) {
+    return '';
+  }
+  const d = dayjs(value);
+  return d.isValid() ? d.format('MMMM YYYY') : '';
+};
 
-const kategoriOptions = ['Asset', 'Risiko'];
+const formatDateValue = value => {
+  if (!value) {
+    return '-';
+  }
+  const d = dayjs(value);
+  return d.isValid() ? d.format('DD MMM YYYY') : String(value);
+};
 
-const LaporanScreen = ({ route }) => {
-  const [kategori, setKategori] = React.useState('Asset');
-  const [dateRange, setDateRange] = React.useState('dd/mm/yyyy - dd/mm/yyyy');
-  const [showKategoriPopup, setShowKategoriPopup] = React.useState(false);
-  const [searchText, setSearchText] = React.useState('');
+const mapMaintenanceToRow = item => {
+  const asset = item?.asset;
+  const date = item?.jadwal_pemeliharaan || item?.target_tanggal || item?.created_at;
+  const jenis = item?.jenis_pemeliharaan || item?.alasan_pemeliharaan || 'Pemeliharaan';
+  const status = formatStatusLabel(item?.status_review || item?.status);
+  return {
+    key: item.id,
+    assetId: asset?.kode_bmd || asset?.id || item.asset_id || `MT-${item.id}`,
+    assetName: asset?.nama || `Asset ${item.asset_id || item.id}`,
+    jenis,
+    tanggal: date,
+    statusMeta: status,
+    raw: item,
+  };
+};
 
-  // ambil hasil scan QR (optional)
-  React.useEffect(() => {
-    const searchId = route?.params?.searchId;
-    if (route?.params?.fromQr && searchId) {
-      setSearchText(searchId.toLowerCase());
-      setKategori('Asset'); // misal QR untuk aset
+const LaporanScreen = () => {
+  const [data, setData] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [selectedMonth, setSelectedMonth] = React.useState('Semua Bulan');
+  const [selectedStatus, setSelectedStatus] = React.useState('Semua Status');
+  const [selectedJenis, setSelectedJenis] = React.useState('Semua Jenis');
+  const [selectedRow, setSelectedRow] = React.useState(null);
+  const [showMonthPopup, setShowMonthPopup] = React.useState(false);
+  const [showStatusPopup, setShowStatusPopup] = React.useState(false);
+  const [showJenisPopup, setShowJenisPopup] = React.useState(false);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await getMaintenances();
+      const payload = (res?.data?.data || []).map(mapMaintenanceToRow);
+      setData(payload);
+      setSelectedRow(payload[0] || null);
+    } catch (err) {
+      console.log('LOAD MAINTENANCE REPORT ERROR:', err?.response?.data || err.message);
+    } finally {
+      setLoading(false);
     }
-  }, [route?.params]);
+  };
 
-  const isAsset = kategori === 'Asset';
-  const baseRows = isAsset ? assetRows : riskRows;
+  React.useEffect(() => {
+    fetchData();
+  }, []);
 
-  // filter sederhana: nama mengandung searchText
-  const rows = baseRows.filter(row =>
-    !searchText ? true : row.nama.toLowerCase().includes(searchText)
-  );
+  const monthOptions = React.useMemo(() => {
+    const options = new Set();
+    data.forEach(row => {
+      const label = getMonthLabel(row.tanggal);
+      if (label) {
+        options.add(label);
+      }
+    });
+    return ['Semua Bulan', ...Array.from(options)];
+  }, [data]);
+
+  const statusOptions = React.useMemo(() => {
+    const options = new Set();
+    data.forEach(row => {
+      options.add(row.statusMeta.label);
+    });
+    return ['Semua Status', ...Array.from(options)];
+  }, [data]);
+
+  const jenisOptions = React.useMemo(() => {
+    const options = new Set();
+    data.forEach(row => {
+      if (row.jenis) {
+        options.add(row.jenis);
+      }
+    });
+    return ['Semua Jenis', ...Array.from(options)];
+  }, [data]);
+
+  const filteredRows = data.filter(row => {
+    const monthLabel = getMonthLabel(row.tanggal);
+    const matchMonth =
+      selectedMonth === 'Semua Bulan' || monthLabel === selectedMonth;
+    const matchStatus =
+      selectedStatus === 'Semua Status' ||
+      row.statusMeta.label === selectedStatus;
+    const matchJenis =
+      selectedJenis === 'Semua Jenis' || row.jenis === selectedJenis;
+    return matchMonth && matchStatus && matchJenis;
+  });
+
+  React.useEffect(() => {
+    if (filteredRows.length) {
+      const exists = filteredRows.some(r => r.key === selectedRow?.key);
+      if (!exists) {
+        setSelectedRow(filteredRows[0]);
+      }
+    } else {
+      setSelectedRow(null);
+    }
+  }, [filteredRows, selectedRow?.key]);
+
+  const renderPopup = (visible, options, onSelect) =>
+    visible ? (
+      <Pressable
+        style={styles.overlay}
+        onPress={() => onSelect(null)}
+      >
+        <View style={styles.popup}>
+          {options.map(opt => (
+            <Pressable
+              key={opt}
+              style={styles.popupItem}
+              onPress={() => onSelect(opt)}
+            >
+              <Text style={styles.popupText}>{opt}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Pressable>
+    ) : null;
 
   return (
     <Screen>
       <SectionCard>
-        <Text style={styles.title}>Laporan</Text>
+        <Text style={styles.title}>Laporan Pemeliharaan Aset</Text>
 
-        {/* Filter bar */}
         <View style={styles.filterRow}>
           <Pressable
             style={styles.filterBox}
-            onPress={() => setShowKategoriPopup(true)}
+            onPress={() => setShowMonthPopup(true)}
           >
-            <Text style={styles.filterText}>{kategori}</Text>
+            <Text style={styles.filterText}>{selectedMonth}</Text>
             <Icon name="chevron-down" size={14} />
           </Pressable>
-
-          <View style={[styles.filterBox, { flex: 2 }]}>
-            <Text style={styles.filterText}>{dateRange}</Text>
-          </View>
-
           <Pressable
-            style={styles.searchButton}
-            onPress={() => {
-              // nanti bisa dipakai untuk trigger fetch API
-            }}
+            style={styles.filterBox}
+            onPress={() => setShowStatusPopup(true)}
           >
-            <Icon name="search" size={18} color="#fff" />
+            <Text style={styles.filterText}>{selectedStatus}</Text>
+            <Icon name="chevron-down" size={14} />
+          </Pressable>
+          <Pressable
+            style={styles.filterBox}
+            onPress={() => setShowJenisPopup(true)}
+          >
+            <Text style={styles.filterText}>{selectedJenis}</Text>
+            <Icon name="chevron-down" size={14} />
+          </Pressable>
+          <Pressable style={styles.searchButton} onPress={fetchData}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Icon name="refresh-ccw" size={18} color="#fff" />
+            )}
           </Pressable>
         </View>
 
-        {/* Header tabel */}
-        {isAsset ? (
-          <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Nama Aset</Text>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Dinas</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Tanggal</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Status</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Download</Text>
-          </View>
-        ) : (
-          <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Nama Risiko</Text>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Prioritas</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Tanggal</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Status</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Status Perlakuan</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Download</Text>
-          </View>
-        )}
+        <View style={styles.tableHeader}>
+          <Text style={[styles.headerCell, { flex: 1 }]}>ID Aset</Text>
+          <Text style={[styles.headerCell, { flex: 2 }]}>Nama Aset</Text>
+          <Text style={[styles.headerCell, { flex: 2 }]}>Jenis Pemeliharaan</Text>
+          <Text style={[styles.headerCell, { flex: 1 }]}>Tanggal</Text>
+          <Text style={[styles.headerCell, { flex: 1 }]}>Status</Text>
+        </View>
 
-        {/* Rows */}
         <ScrollView contentContainerStyle={styles.list}>
-          {rows.map((row, idx) => (
-            <View key={idx} style={styles.row}>
-              {isAsset ? (
-                <>
-                  <Text style={[styles.cellText, { flex: 2 }]}>{row.nama}</Text>
-                  <Text style={[styles.cellText, { flex: 2 }]}>{row.dinas}</Text>
-                  <Text style={[styles.cellText, { flex: 1 }]}>{row.tanggal}</Text>
-                  <Text style={[styles.cellText, { flex: 1 }]}>{row.status}</Text>
-                  <Pressable style={styles.downloadPill}>
-                    <Text style={styles.downloadText}>Download</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.cellText, { flex: 2 }]}>{row.nama}</Text>
-                  <Text style={[styles.cellText, { flex: 2 }]}>{row.prioritas}</Text>
-                  <Text style={[styles.cellText, { flex: 1 }]}>{row.tanggal}</Text>
-                  <Text style={[styles.cellText, { flex: 1 }]}>{row.status}</Text>
-                  <Text style={[styles.cellText, { flex: 1 }]}>{row.statusPerlakuan}</Text>
-                  <Pressable style={styles.downloadPill}>
-                    <Text style={styles.downloadText}>Download</Text>
-                  </Pressable>
-                </>
-              )}
-            </View>
+          {filteredRows.map(row => (
+            <Pressable
+              key={row.key}
+              style={[
+                styles.row,
+                selectedRow?.key === row.key && styles.rowActive,
+              ]}
+              onPress={() => setSelectedRow(row)}
+            >
+              <Text style={[styles.cellText, { flex: 1 }]}>{row.assetId}</Text>
+              <Text style={[styles.cellText, { flex: 2 }]}>{row.assetName}</Text>
+              <Text style={[styles.cellText, { flex: 2 }]}>{row.jenis}</Text>
+              <Text style={[styles.cellText, { flex: 1 }]}>
+                {formatDateValue(row.tanggal)}
+              </Text>
+              <View style={[styles.statusPill, { backgroundColor: row.statusMeta.color }]}>
+                <Text style={styles.statusText}>{row.statusMeta.label}</Text>
+              </View>
+            </Pressable>
           ))}
+          {!loading && !filteredRows.length && (
+            <Text style={styles.emptyText}>Data pemeliharaan tidak ditemukan.</Text>
+          )}
         </ScrollView>
 
-        {/* Popup kategori */}
-        {showKategoriPopup && (
-          <Pressable
-            style={styles.overlay}
-            onPress={() => setShowKategoriPopup(false)}
-          >
-            <View style={styles.popup}>
-              {kategoriOptions.map(opt => (
-                <Pressable
-                  key={opt}
-                  style={styles.popupItem}
-                  onPress={() => {
-                    setKategori(opt);
-                    setShowKategoriPopup(false);
-                  }}
-                >
-                  <Text style={styles.popupText}>{opt}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
-        )}
+        <View style={styles.detailCard}>
+          <Text style={styles.detailTitle}>Detail Pemeliharaan</Text>
+          {selectedRow ? (
+            <>
+              <Text style={styles.detailRow}>
+                <Text style={styles.detailLabel}>ID Aset :</Text> {selectedRow.assetId}
+              </Text>
+              <Text style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Nama :</Text> {selectedRow.assetName}
+              </Text>
+              <Text style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Tanggal :</Text>{' '}
+                {formatDateValue(selectedRow.tanggal)}
+              </Text>
+              <Text style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Jenis :</Text> {selectedRow.jenis}
+              </Text>
+              <Text style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Status :</Text> {selectedRow.statusMeta.label}
+              </Text>
+              <Text style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Pelaksana :</Text>{' '}
+                {selectedRow.raw?.penanggungjawab?.nama ||
+                  selectedRow.raw?.penanggung_jawab?.nama ||
+                  selectedRow.raw?.penanggungjawab_id ||
+                  '-'}
+              </Text>
+              <Text style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Deskripsi :</Text>{' '}
+                {selectedRow.raw?.alasan_pemeliharaan || '-'}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>Pilih salah satu data untuk melihat detail.</Text>
+          )}
+        </View>
+
+        {renderPopup(showMonthPopup, monthOptions, opt => {
+          if (opt) {
+            setSelectedMonth(opt);
+          }
+          setShowMonthPopup(false);
+        })}
+        {renderPopup(showStatusPopup, statusOptions, opt => {
+          if (opt) {
+            setSelectedStatus(opt);
+          }
+          setShowStatusPopup(false);
+        })}
+        {renderPopup(showJenisPopup, jenisOptions, opt => {
+          if (opt) {
+            setSelectedJenis(opt);
+          }
+          setShowJenisPopup(false);
+        })}
       </SectionCard>
     </Screen>
   );
@@ -170,82 +305,121 @@ const styles = StyleSheet.create({
   filterBox: {
     flex: 1,
     height: 36,
-    borderRadius: 4,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#DDD',
-    paddingHorizontal: 8,
+    borderColor: '#E4E4E7',
+    paddingHorizontal: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFF',
+    backgroundColor: colors.white,
   },
   filterText: {
     fontSize: 11,
+    color: '#111827',
   },
   searchButton: {
-    width: 36,
+    width: 38,
     height: 36,
-    borderRadius: 4,
-    backgroundColor: '#4CAF50',
+    borderRadius: 6,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   tableHeader: {
     flexDirection: 'row',
-    paddingVertical: 6,
+    paddingVertical: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    borderBottomColor: '#E4E4E7',
   },
   headerCell: {
     fontSize: 11,
     fontWeight: '600',
+    color: '#6B7280',
   },
   list: {
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F1F1',
+    borderBottomColor: '#F3F4F6',
+  },
+  rowActive: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 6,
   },
   cellText: {
     fontSize: 11,
+    color: '#111827',
   },
-  downloadPill: {
-    flex: 1,
-    backgroundColor: '#4CAF50',
-    borderRadius: 999,
+  statusPill: {
+    borderRadius: 12,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 4,
-    paddingHorizontal: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  downloadText: {
-    color: '#FFF',
+  statusText: {
     fontSize: 10,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginVertical: spacing.md,
+  },
+  detailCard: {
+    marginTop: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  detailTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: spacing.sm,
+  },
+  detailRow: {
+    fontSize: 12,
+    color: '#111827',
+    marginBottom: spacing.xs,
+  },
+  detailLabel: {
     fontWeight: '600',
   },
   overlay: {
     position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
   },
   popup: {
     marginTop: 90,
     marginLeft: 24,
-    backgroundColor: '#fff',
-    borderRadius: 4,
+    backgroundColor: colors.white,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#DDD',
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   popupItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   popupText: {
     fontSize: 12,
+    color: '#111827',
   },
 });
 

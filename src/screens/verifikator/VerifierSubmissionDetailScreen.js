@@ -14,7 +14,8 @@ import {
   rejectRisk,
   approveRiskTreatment,
   rejectRiskTreatment,
-  updateMaintenance,
+  approveMaintenance,
+  rejectMaintenance,
   reviewAssetDeletion,
 } from '../../api/siprima';
 
@@ -121,17 +122,19 @@ const VerifierSubmissionDetailScreen = ({ route, navigation }) => {
           });
         }
       } else if (type === 'Maintenance') {
-        await updateMaintenance(submission.raw?.id, {
-          asset_id: submission.raw?.asset_id,
-          risk_id: submission.raw?.risk_id,
-          risk_treatment_id: submission.raw?.risk_treatment_id,
-          alasan_pemeliharaan: submission.raw?.alasan_pemeliharaan,
-          status: decision === 'approve' ? 'penanganan' : 'pending',
-        });
+        if (decision === 'approve') {
+          await approveMaintenance(submission.raw?.id);
+        } else {
+          await rejectMaintenance(submission.raw?.id, {
+            alasan_ditolak: reason || '-',
+          });
+        }
       } else if (type === 'Asset Deletion') {
+        const statusPayload =
+          decision === 'approve' ? 'accepted' : 'rejected';
         await reviewAssetDeletion(submission.raw?.id, {
-          status: decision === 'approve' ? 'diterima' : 'ditolak',
-          ...(decision === 'reject'
+          status: statusPayload,
+          ...(statusPayload === 'rejected'
             ? { alasan_ditolak: reason || '-' }
             : {}),
         });

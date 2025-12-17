@@ -1,24 +1,70 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import spacing from '../../theme/spacing';
 import colors from '../../theme/colors';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
+import dayjs from 'dayjs';
+import { getMaintenances } from '../../api/siprima';
 
-const dummyData = [
-  { id: 'r14a', nama: 'Laptop', risiko: 'LCD Pecah', level: 'Sedang', jadwal: '20 Okt 2025', status: 'Due' },
-  { id: 'd45k', nama: 'Komputer', risiko: 'Komputer Tidak Berfungsi', level: 'Sedang', jadwal: '17 Okt 2025', status: 'Due' },
-  { id: 'c12d', nama: 'Data Cloud', risiko: 'Kebocoran Data', level: 'Tinggi', jadwal: '10 Okt 2025', status: 'Due' },
-  { id: 'v52m', nama: 'Microsoft Word', risiko: 'File Word mengandung malware', level: 'Tinggi', jadwal: '7 Okt 2025', status: 'Due' },
-  { id: 'k99o', nama: 'Server', risiko: 'Downtime', level: 'Sedang', jadwal: '4 Okt 2025', status: 'Done' },
-  { id: 'p171', nama: 'Printer', risiko: 'Overheating', level: 'Sedang', jadwal: '30 Sept 2025', status: 'Due' },
-  { id: 'f82j', nama: 'Printer', risiko: 'Kerusakan Hardware', level: 'Tinggi', jadwal: '26 Sept 2025', status: 'Due' },
-];
+const statusLabel = status => {
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase();
+  if (['accepted', 'selesai', 'done', 'diterima'].includes(normalized)) {
+    return 'Selesai';
+  }
+  if (
+    ['rejected', 'ditolak', 'declined'].includes(normalized)
+  ) {
+    return 'Ditolak';
+  }
+  if (['penanganan', 'in_progress'].includes(normalized)) {
+    return 'Penanganan';
+  }
+  return 'Due';
+};
 
 const MaintenanceScheduleScreen = () => {
   const navigation = useNavigation();
+  const [schedule, setSchedule] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+
+  const fetchSchedule = async () => {
+    try {
+      setLoading(true);
+      const res = await getMaintenances();
+      const data = res?.data?.data || [];
+      setSchedule(data);
+    } catch (err) {
+      console.log('LOAD MAINTENANCE SCHEDULE ERROR:', err?.response?.data || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchSchedule();
+  }, []);
+
+  const formatRow = item => {
+    const asset = item?.asset;
+    const risk = item?.risk;
+    const jadwal =
+      item?.jadwal_pemeliharaan ||
+      item?.target_tanggal ||
+      item?.created_at;
+    return {
+      id: asset?.kode_bmd || asset?.id || item?.asset_id || `MT-${item.id}`,
+      nama: asset?.nama || `Asset ${item.asset_id || item.id}`,
+      risiko: risk?.judul || item?.alasan_pemeliharaan || '-',
+      level: risk?.kriteria || risk?.level_risiko || '-',
+      jadwal: jadwal ? dayjs(jadwal).format('DD MMM YYYY') : '-',
+      status: statusLabel(item?.status_review || item?.status),
+    };
+  };
 
   return (
     <Screen>
@@ -28,10 +74,17 @@ const MaintenanceScheduleScreen = () => {
           <Text style={styles.title}>Jadwal Pemeliharaan</Text>
 
           <View style={styles.headerRight}>
-            <Pressable style={styles.iconButton} onPress={() => { /* nanti untuk filter */ }}>
-              <Icon name="filter" size={18} color="#000" />
+            <Pressable style={styles.iconButton} onPress={fetchSchedule}>
+              {loading ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Icon name="refresh-ccw" size={18} color="#000" />
+              )}
             </Pressable>
-            <Pressable style={styles.reportButton} onPress={() => { /* nanti ke laporan */ }}>
+            <Pressable
+              style={styles.reportButton}
+              onPress={() => navigation.navigate('Dashboard', { screen: 'Laporan' })}
+            >
               <Text style={styles.reportText}>Laporan</Text>
               <Icon name="chevron-down" size={16} color="#fff" />
             </Pressable>
@@ -49,26 +102,32 @@ const MaintenanceScheduleScreen = () => {
 
         {/* List */}
         <ScrollView contentContainerStyle={styles.list}>
-          {dummyData.map(item => (
-            <View key={item.id} style={styles.row}>
-              <View style={[styles.cell, { flex: 2 }]}>
-                <Text style={styles.boldText}>{item.id}</Text>
-                <Text style={styles.normalText}>{item.nama}</Text>
+          {(schedule || []).map(item => {
+            const row = formatRow(item);
+            return (
+              <View key={`${item.id}-${row.id}`} style={styles.row}>
+                <View style={[styles.cell, { flex: 2 }]}>
+                  <Text style={styles.boldText}>{row.id}</Text>
+                  <Text style={styles.normalText}>{row.nama}</Text>
+                </View>
+                <View style={[styles.cell, { flex: 2 }]}>
+                  <Text style={styles.normalText}>{row.risiko}</Text>
+                </View>
+                <View style={[styles.cell, { flex: 1 }]}>
+                  <Text style={styles.boldText}>{row.level}</Text>
+                </View>
+                <View style={[styles.cell, { flex: 1 }]}>
+                  <Text style={styles.boldText}>{row.jadwal}</Text>
+                </View>
+                <View style={[styles.cell, { flex: 1 }]}>
+                  <Text style={styles.normalText}>{row.status}</Text>
+                </View>
               </View>
-              <View style={[styles.cell, { flex: 2 }]}>
-                <Text style={styles.normalText}>{item.risiko}</Text>
-              </View>
-              <View style={[styles.cell, { flex: 1 }]}>
-                <Text style={styles.boldText}>{item.level}</Text>
-              </View>
-              <View style={[styles.cell, { flex: 1 }]}>
-                <Text style={styles.boldText}>{item.jadwal}</Text>
-              </View>
-              <View style={[styles.cell, { flex: 1 }]}>
-                <Text style={styles.normalText}>{item.status}</Text>
-              </View>
-            </View>
-          ))}
+            );
+          })}
+          {!loading && !schedule.length && (
+            <Text style={styles.emptyText}>Belum ada jadwal pemeliharaan.</Text>
+          )}
         </ScrollView>
       </SectionCard>
     </Screen>
@@ -150,6 +209,11 @@ const styles = StyleSheet.create({
   },
   normalText: {
     fontSize: 11,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    marginTop: spacing.md,
   },
 });
 

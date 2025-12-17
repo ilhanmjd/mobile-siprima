@@ -36,6 +36,13 @@ const NotificationDetailScreen = ({ route }) => {
   const isRiskTreatmentAccepted =
     mode === 'RISK_TREATMENT' &&
     (riskTreatmentData?.status || '').toLowerCase() === 'accepted';
+  const resolvedRiskId =
+    riskId ??
+    riskTreatmentData?.risiko_id ??
+    riskTreatmentData?.risk_id ??
+    riskTreatmentData?.risk?.id ??
+    riskData?.id ??
+    null;
   const headerTitle = assetSource?.nama || asset;
   const displayCategory = assetSource?.kategori?.nama || category;
   const displayCode =
@@ -88,7 +95,34 @@ const NotificationDetailScreen = ({ route }) => {
       onPressPrimary = () => {
         navigation.navigate('Asset', {
           screen: 'RiskTreatmentWizard',
-          params: { riskId },
+          params: {
+            riskId: resolvedRiskId,
+            initialData: {
+              idRisiko:
+                resolvedRiskId !== null && resolvedRiskId !== undefined
+                  ? String(resolvedRiskId)
+                  : '',
+              strategi: riskTreatmentData?.strategi || '',
+              pengendalian: riskTreatmentData?.pengendalian || '',
+              penanggungJawab:
+                riskTreatmentData?.penanggung_jawab?.id ||
+                riskTreatmentData?.penanggung_jawab_id ||
+                '',
+              targetTanggal: riskTreatmentData?.target_tanggal || '',
+              biaya: riskTreatmentData?.biaya
+                ? String(riskTreatmentData.biaya)
+                : '',
+              probabilitasAkhir: riskTreatmentData?.probabilitas_akhir
+                ? String(riskTreatmentData.probabilitas_akhir)
+                : '',
+              dampakAkhir: riskTreatmentData?.dampak_akhir
+                ? String(riskTreatmentData.dampak_akhir)
+                : '',
+              levelResidual: riskTreatmentData?.level_residual
+                ? String(riskTreatmentData.level_residual)
+                : '',
+            },
+          },
         });
       };
     }
@@ -151,6 +185,9 @@ const NotificationDetailScreen = ({ route }) => {
             {mode === 'RISK_TREATMENT' && riskData ? (
               <>
                 <Text style={styles.sectionLabel}>Detail Risiko</Text>
+                <Text style={styles.row}>
+                  ID Risiko       : {resolvedRiskId ?? '-'}
+                </Text>
                 <Text style={styles.row}>Judul Risiko     : {riskData.judul || headerTitle}</Text>
                 <Text style={styles.row}>Penyebab         : {riskData.penyebab || '-'}</Text>
                 <Text style={styles.row}>Dampak           : {riskData.dampak || '-'}</Text>

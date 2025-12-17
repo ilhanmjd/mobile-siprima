@@ -24,37 +24,54 @@ const RiskTreatmentWizardScreen = ({ navigation, route }) => {
   const initialData = route?.params?.initialData || {};
   const riskIdFromRoute = route?.params?.riskId;
 
-  const PIC_OPTIONS = [
-    { label: 'Davin', value: 1 },
-    { label: 'Riani', value: 2 },
-    { label: 'Sakti', value: 3 },
-  ];
+const PIC_OPTIONS = [
+  { label: 'Davin', value: 1 },
+  { label: 'Riani', value: 2 },
+  { label: 'Sakti', value: 3 },
+];
 
-  const [form, setForm] = React.useState({
-    idRisiko:
-      initialData.idRisiko ||
-      (riskIdFromRoute ? String(riskIdFromRoute) : ''),
-    strategi: initialData.strategi || '',
-    pengendalian: initialData.pengendalian || '',
-    penanggungJawab: initialData.penanggungJawab || '',
-    targetTanggal: initialData.targetTanggal || '',
-    biaya: initialData.biaya || '',
-    probabilitasAkhir: initialData.probabilitasAkhir || '',
-    dampakAkhir: initialData.dampakAkhir || '',
-    levelResidual: initialData.levelResidual || '',
-    lampiran: initialData.lampiran || null,
-  });
+  const buildInitialForm = React.useCallback(() => {
+    const resolvedRiskId =
+      initialData.idRisiko ??
+      (riskIdFromRoute ? String(riskIdFromRoute) : '');
+    return {
+      idRisiko:
+        resolvedRiskId !== null && resolvedRiskId !== undefined
+          ? String(resolvedRiskId)
+          : '',
+      strategi: initialData.strategi || '',
+      pengendalian: initialData.pengendalian || '',
+      penanggungJawab: initialData.penanggungJawab || '',
+      targetTanggal: initialData.targetTanggal || '',
+      biaya: initialData.biaya || '',
+      probabilitasAkhir: initialData.probabilitasAkhir || '',
+      dampakAkhir: initialData.dampakAkhir || '',
+      levelResidual: initialData.levelResidual || '',
+      lampiran: initialData.lampiran || null,
+    };
+  }, [initialData, riskIdFromRoute]);
+
+  const getPicLabel = React.useCallback(value => {
+    if (!value) {
+      return '';
+    }
+    const found = PIC_OPTIONS.find(opt => String(opt.value) === String(value));
+    return found?.label || String(value);
+  }, []);
+
+  const formatDateValue = React.useCallback(value => {
+    if (!value) {
+      return '';
+    }
+    const parsed = dayjs(value);
+    return parsed.isValid() ? parsed.format('DD/MM/YYYY') : String(value);
+  }, []);
+
+  const [form, setForm] = React.useState(buildInitialForm);
 
   React.useEffect(() => {
-    if (riskIdFromRoute) {
-      setForm(f => {
-        if (f.idRisiko) {
-          return f;
-        }
-        return { ...f, idRisiko: String(riskIdFromRoute) };
-      });
-    }
-  }, [riskIdFromRoute]);
+    setForm(buildInitialForm());
+  }, [buildInitialForm]);
 
   const hitungLevelResidual = (probStr, impactStr) => {
     const prob = Number(probStr) || 0;
@@ -141,8 +158,16 @@ const RiskTreatmentWizardScreen = ({ navigation, route }) => {
             <FormField label="ID Risiko" value={form.idRisiko} editable={false} />
             <FormField label="Strategi" value={form.strategi} editable={false} />
             <FormField label="Pengendalian" value={form.pengendalian} editable={false} />
-            <FormField label="Penanggung Jawab" value={form.penanggungJawab} editable={false} />
-            <FormField label="Target Tanggal" value={form.targetTanggal} editable={false} />
+            <FormField
+              label="Penanggung Jawab"
+              value={getPicLabel(form.penanggungJawab)}
+              editable={false}
+            />
+            <FormField
+              label="Target Tanggal"
+              value={formatDateValue(form.targetTanggal)}
+              editable={false}
+            />
             <FormField label="Biaya" value={form.biaya} editable={false} />
             <FormField label="Probabilitas Akhir" value={form.probabilitasAkhir} editable={false} />
             <FormField label="Dampak Akhir" value={form.dampakAkhir} editable={false} />
@@ -196,7 +221,10 @@ const RiskTreatmentWizardScreen = ({ navigation, route }) => {
                   label="Next"
                   onPress={() => {
                     setShowSuccess(false);
-                    navigation.navigate('Notifications');
+                    navigation.navigate('Notifications', {
+                      screen: 'NotificationsMain',
+                      params: { initialFilter: 'Risk Treatment' },
+                    });
                   }}
                 />
               </View>

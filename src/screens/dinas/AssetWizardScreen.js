@@ -180,10 +180,12 @@ const AssetWizardScreen = ({ navigation, route }) => {
     try {
       setSubmitting(true);
 
+      const dinasId = toNumberOrNull(
+        user?.dinas_id || user?.dinasId || user?.dinas?.id,
+      );
+      const lampiran = serializeLampiran(form.lampiran);
+
       const payload = {
-        dinas_id: toNumberOrNull(
-          user?.dinas_id || user?.dinasId || user?.dinas?.id,
-        ),
         kategori_id: toNumberOrNull(form.kategori),
         subkategori_id: toNumberOrNull(form.subKategori),
         lokasi_id: toNumberOrNull(form.lokasi),
@@ -197,10 +199,14 @@ const AssetWizardScreen = ({ navigation, route }) => {
           String(form.nilaiPerolehan || '0').replace(/[^0-9]/g, ''),
         ),
         kondisi: form.kondisi,
-        lampiran_bukti: serializeLampiran(form.lampiran),
+        ...(lampiran ? { lampiran_bukti: lampiran } : {}),
         is_usage: form.status?.toLowerCase() === 'active' ? 'active' : 'inactive',
         status: 'pending',
       };
+
+      if (dinasId) {
+        payload.dinas_id = dinasId;
+      }
 
       await createAsset(payload);
       setShowSuccess(true);
@@ -352,7 +358,10 @@ const AssetWizardScreen = ({ navigation, route }) => {
                   label="Next"
                   onPress={() => {
                     setShowSuccess(false);
-                    navigation.navigate('Notifications');
+                    navigation.navigate('Notifications', {
+                      screen: 'NotificationsMain',
+                      params: { initialFilter: 'Asset' },
+                    });
                   }}
                 />
               </View>

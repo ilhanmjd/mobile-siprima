@@ -17,7 +17,7 @@ const FILTERS = ['Asset', 'Risk', 'Risk Treatment', 'Maintenance', 'Asset Deleti
 
 const VerifierVerificationScreen = ({ navigation }) => {
   const [activeFilter, setActiveFilter] = React.useState('Asset');
-  const { submissions, loading } = useVerifierSubmissions();
+  const { submissions, loading, refetch } = useVerifierSubmissions();
 
   const items = submissions[activeFilter] || [];
 
@@ -32,7 +32,12 @@ const VerifierVerificationScreen = ({ navigation }) => {
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={styles.title}>Verification</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Verification</Text>
+          <TouchableOpacity style={styles.refreshButton} onPress={refetch}>
+            <Text style={styles.refreshText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
 
         <ScrollView
           horizontal
@@ -122,8 +127,24 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    textAlign: 'center',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: spacing.md,
+  },
+  refreshButton: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  refreshText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   filterRow: {
     paddingVertical: 4,

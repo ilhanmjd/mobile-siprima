@@ -79,7 +79,8 @@ const MaintenanceInputScreen = ({ navigation, route }) => {
           text: 'OK',
           onPress: () =>
             navigation.navigate('Notifications', {
-              screen: 'Notifications',
+              screen: 'NotificationsMain',
+              params: { initialFilter: 'Maintenance' },
             }),
         },
       ]);

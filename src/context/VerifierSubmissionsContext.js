@@ -162,11 +162,17 @@ const mapRiskTreatmentSubmissions = rts =>
   rts
     .filter(item => isPendingStatus(item.status))
     .map(item => {
+      const assetName =
+        item?.risk?.asset?.nama ||
+        item?.asset?.nama ||
+        item?.asset_name ||
+        '-';
       const steps = ['Rencana', 'Residual'];
       const sections = [
         {
           title: 'Rencana Perlakuan',
           fields: [
+            { label: 'Asset', value: assetName },
             { label: 'Strategi', value: item.strategi || '-' },
             { label: 'Pengendalian', value: item.pengendalian || '-' },
             {
@@ -304,6 +310,28 @@ export const VerifierSubmissionsProvider = ({ children }) => {
   const [notifications, setNotifications] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
 
+const fetchWithPendingPref = async (apiCall, label) => {
+  try {
+    const res = await apiCall({ status: 'pending' });
+    return res?.data?.data || [];
+  } catch (err) {
+    console.log(
+      `VERIFIER ${label} PENDING ERROR:`,
+      err?.response?.data || err?.message,
+    );
+    try {
+      const fallback = await apiCall();
+      return fallback?.data?.data || [];
+    } catch (fallbackErr) {
+      console.log(
+        `VERIFIER ${label} FETCH ERROR:`,
+        fallbackErr?.response?.data || fallbackErr?.message,
+      );
+      return [];
+    }
+  }
+};
+
   const fetchMaintenanceData = async () => {
     try {
       const res = await getMaintenances();
@@ -331,43 +359,17 @@ export const VerifierSubmissionsProvider = ({ children }) => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [
-      assetRes,
-      riskRes,
-      rtRes,
-    ] = await Promise.allSettled([
-      getDinasAssets({ status: 'pending' }),
-      getDinasRisks({ status: 'pending' }),
-      getRiskTreatments({ status: 'pending' }),
+    const [assetData, riskData, rtData] = await Promise.all([
+      fetchWithPendingPref(getDinasAssets, 'ASSET'),
+      fetchWithPendingPref(getDinasRisks, 'RISK'),
+      fetchWithPendingPref(getRiskTreatments, 'RISK TREATMENT'),
     ]);
     const maintenanceData = await fetchMaintenanceData();
     const assetDeletionData = await fetchAssetDeletionData();
 
-    const extractData = res =>
-      res.status === 'fulfilled' ? res.value?.data?.data || [] : [];
-
-    if (assetRes.status === 'rejected') {
-      console.log(
-        'VERIFIER ASSET FETCH ERROR:',
-        assetRes.reason?.response?.data || assetRes.reason?.message,
-      );
-    }
-    if (riskRes.status === 'rejected') {
-      console.log(
-        'VERIFIER RISK FETCH ERROR:',
-        riskRes.reason?.response?.data || riskRes.reason?.message,
-      );
-    }
-    if (rtRes.status === 'rejected') {
-      console.log(
-        'VERIFIER RISK TREATMENT FETCH ERROR:',
-        rtRes.reason?.response?.data || rtRes.reason?.message,
-      );
-    }
-
-    const assetSubs = mapAssetSubmissions(extractData(assetRes));
-    const riskSubs = mapRiskSubmissions(extractData(riskRes));
-    const rtSubs = mapRiskTreatmentSubmissions(extractData(rtRes));
+    const assetSubs = mapAssetSubmissions(assetData);
+    const riskSubs = mapRiskSubmissions(riskData);
+    const rtSubs = mapRiskTreatmentSubmissions(rtData);
     const maintenanceSubs = mapMaintenanceSubmissions(maintenanceData);
     const assetDeletionSubs = mapAssetDeletionSubmissions(assetDeletionData);
 

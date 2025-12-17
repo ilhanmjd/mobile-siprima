@@ -4,8 +4,10 @@ import Screen from '../../components/Screen';
 import SectionCard from '../../components/SectionCard';
 import spacing from '../../theme/spacing';
 import colors from '../../theme/colors';
+import { useNavigation } from '@react-navigation/native';
 
 const DiskominfoDashboardScreen = () => {
+  const navigation = useNavigation();
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container}>
@@ -107,9 +109,10 @@ const DiskominfoDashboardScreen = () => {
             <View key={idx} style={styles.notifRow}>
               <View style={[styles.notifDot, { backgroundColor: '#FF4D4F' }]} />
               <Text style={styles.notifText}>{a}</Text>
-              <TouchableOpacity>
-                <Text style={styles.linkText}>Verifikasi</Text>
-              </TouchableOpacity>
+              <TouchableOpacity
+    onPress={() => navigation.navigate('DiskominfoAssetDeletionVerification')} >
+    <Text style={styles.linkText}>Verifikasi</Text>
+  </TouchableOpacity>
             </View>
           ))}
         </SectionCard>

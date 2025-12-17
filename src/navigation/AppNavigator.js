@@ -5,11 +5,11 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
 
-// Screens
+// Common
 import AuthLoadingScreen from '../screens/common/AuthLoadingScreen';
 import LoginScreen from '../screens/common/LoginScreen';
 
-// DINAS Screens
+// DINAS
 import DinasDashboardScreen from '../screens/dinas/DinasDashboardScreen';
 import NotificationsScreen from '../screens/dinas/NotificationsScreen';
 import FaqScreen from '../screens/dinas/FaqScreen';
@@ -28,18 +28,23 @@ import NotificationRejectedScreen from '../screens/dinas/NotificationRejectedScr
 import LaporanScreen from '../screens/dinas/LaporanScreen';
 import QrScannerScreen from '../screens/dinas/QrScannerScreen';
 import RequestScreen from '../screens/dinas/RequestScreen';
-// VERIFIKATOR Screens
+
+// VERIFIKATOR
 import VerifierDashboardStack from './VerifierDashboardStack';
 import VerifierVerificationScreen from '../screens/verifikator/VerifierVerificationScreen';
 import VerifierNotificationsScreen from '../screens/verifikator/VerifierNotificationsScreen';
 import VerifierProfileScreen from '../screens/verifikator/VerifierProfileScreen';
 import VerifierSubmissionDetailScreen from '../screens/verifikator/VerifierSubmissionDetailScreen';
-// DISKOMINFO Screens
+
+// DISKOMINFO
 import DiskominfoDashboardScreen from '../screens/diskominfo/DiskominfoDashboardScreen';
 import DiskominfoProfileScreen from '../screens/diskominfo/DiskominfoProfileScreen';
-// AUDITOR Screens
+import DiskominfoAssetDeletionVerificationScreen from '../screens/diskominfo/DiskominfoAssetDeletionVerificationScreen';
+
+// AUDITOR
 import AuditorDashboardScreen from '../screens/auditor/AuditorDashboardScreen';
 import AuditorProfileScreen from '../screens/auditor/AuditorProfileScreen';
+
 // Tema
 import { colors } from '../theme';
 
@@ -83,7 +88,7 @@ const DinasNotificationsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="NotificationsMain" component={NotificationsScreen} />
     <Stack.Screen name="NotificationDetail" component={NotificationDetailScreen} />
-    <Stack.Screen name="NotificationRejected" component={NotificationRejectedScreen}/>
+    <Stack.Screen name="NotificationRejected" component={NotificationRejectedScreen} />
   </Stack.Navigator>
 );
 
@@ -120,7 +125,6 @@ const DinasTabs = () => (
   </Tab.Navigator>
 );
 
-/* ========= TAB VERIFIKATOR ========= */
 const VerifierVerificationStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen
@@ -134,6 +138,7 @@ const VerifierVerificationStack = () => (
   </Stack.Navigator>
 );
 
+/* ========= TAB VERIFIKATOR ========= */
 const VerifierTabs = () => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
@@ -158,10 +163,7 @@ const VerifierTabs = () => (
     })}
   >
     <Tab.Screen name="Beranda" component={VerifierDashboardStack} />
-    <Tab.Screen
-      name="Verification"
-      component={VerifierVerificationStack}
-    />
+    <Tab.Screen name="Verification" component={VerifierVerificationStack} />
     <Tab.Screen name="Notifikasi" component={VerifierNotificationsScreen} />
     <Tab.Screen name="Profil" component={VerifierProfileScreen} />
   </Tab.Navigator>
@@ -176,7 +178,10 @@ const DiskominfoDashboardStack = () => (
       name="DiskominfoDashboardMain"
       component={DiskominfoDashboardScreen}
     />
-    {/* nanti: DiskominfoAssetDeletionVerificationScreen, dll */}
+    <DiskominfoStack.Screen
+      name="DiskominfoAssetDeletionVerification"
+      component={DiskominfoAssetDeletionVerificationScreen}
+    />
   </DiskominfoStack.Navigator>
 );
 
@@ -191,6 +196,7 @@ const DiskominfoTabs = () => (
         const iconMap = {
           DiskominfoDashboard: 'home',
           Profil: 'user',
+          DeletionVerification: 'trash-2',
         };
         return <Feather name={iconMap[route.name]} size={size} color={color} />;
       },
@@ -201,7 +207,8 @@ const DiskominfoTabs = () => (
       ),
     })}
   >
-    <Tab.Screen name="DiskominfoDashboard" component={DiskominfoDashboardStack}/>
+    <Tab.Screen name="DiskominfoDashboard" component={DiskominfoDashboardStack} />
+    <Tab.Screen name="DeletionVerification" component={DiskominfoAssetDeletionVerificationScreen} />
     <Tab.Screen name="Profil" component={DiskominfoProfileScreen} />
   </Tab.Navigator>
 );
@@ -215,7 +222,6 @@ const AuditorDashboardStack = () => (
       name="AuditorDashboardMain"
       component={AuditorDashboardScreen}
     />
-    {/* nanti: AuditorDetailScreen, dll */}
   </AuditorStack.Navigator>
 );
 
@@ -232,7 +238,7 @@ const AuditorTabs = () => (
           Profil: 'user',
         };
         return <Feather name={iconMap[route.name]} size={size} color={color} />;
-},
+      },
       tabBarLabel: ({ focused, color }) => (
         <Text style={{ color, fontWeight: focused ? '600' : '400', fontSize: 12 }}>
           {route.name}
@@ -240,14 +246,18 @@ const AuditorTabs = () => (
       ),
     })}
   >
-    <Tab.Screen name="AuditorDashboard" component={AuditorDashboardStack}/>
+    <Tab.Screen name="AuditorDashboard" component={AuditorDashboardStack} />
     <Tab.Screen name="Profil" component={AuditorProfileScreen} />
   </Tab.Navigator>
 );
+
 /* ========= ROOT ========= */
 const AppNavigator = () => (
   <NavigationContainer>
-    <RootStack.Navigator initialRouteName="AuthLoading" screenOptions={{ headerShown: false }}>
+    <RootStack.Navigator
+      initialRouteName="AuthLoading"
+      screenOptions={{ headerShown: false }}
+    >
       <RootStack.Screen name="AuthLoading" component={AuthLoadingScreen} />
       <RootStack.Screen name="Login" component={LoginScreen} />
       <RootStack.Screen name="DinasTabs" component={DinasTabs} />

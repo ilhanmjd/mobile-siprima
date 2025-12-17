@@ -250,7 +250,10 @@ const RiskWizardScreen = ({ navigation, route }) => {
                   label="Next"
                   onPress={() => {
                     setShowSuccess(false);
-                    navigation.navigate('Notifications');
+                    navigation.navigate('Notifications', {
+                      screen: 'NotificationsMain',
+                      params: { initialFilter: 'Risk' },
+                    });
                   }}
                 />
               </View>
